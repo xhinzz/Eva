@@ -1,0 +1,5 @@
+build/
+*.bin
+*_diario.txt
+*.ppm
+*.o

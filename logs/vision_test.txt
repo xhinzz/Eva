@@ -1,0 +1,3 @@
+epocas 30: erro V1 0.083, erro imaginacao (V2->V1->pixels) 0.079  (0 = perfeito, ~0.3 = ruido)
+codigo da mesma coisa (variada): 0.49 de sobreposicao | coisas diferentes: 0.02
+pares mais parecidos: mar-cafe(0.67) mesa-fruta(0.33) pao-fruta(0.17) pao-bolo(0.17) mesa-pao(0.17)

@@ -1,0 +1,5 @@
+apontando, 1 voltas, 8 sementes: nomeou 62/80, nome certo 35/80 (44%) | imaginou certo 71/80 (89%) | foi a praia 0/8 | pegou a flor 4/8
+apontando, 2 voltas, 8 sementes: nomeou 69/80, nome certo 52/80 (65%) | imaginou certo 74/80 (92%) | foi a praia 0/8 | pegou a flor 7/8
+apontando, 4 voltas, 8 sementes: nomeou 74/80, nome certo 58/80 (72%) | imaginou certo 75/80 (94%) | foi a praia 8/8 | pegou a flor 8/8
+apontando, 8 voltas, 8 sementes: nomeou 76/80, nome certo 63/80 (79%) | imaginou certo 77/80 (96%) | foi a praia 8/8 | pegou a flor 8/8
+sem apontar, 4 voltas, 8 sementes: nomeou 68/80, nome certo 17/80 (21%) | imaginou certo 32/80 (40%) | foi a praia 1/8 | pegou a flor 5/8

@@ -1,0 +1,47 @@
+=== Eva: dialogo que nasce do estado interno ===
+
+[Manha] Voce conversa com a Eva. Ela ainda nao sabe nada.
+Voce: bom dia eva
+        (surpresa 1.00, dopamina 0.47, nova: bom, nova: dia, nova: eva)
+         Eva: bom dia eva   [eco <surpresa>]
+Voce: eu gosto de musica  (com carinho)
+        (surpresa 1.00, dopamina 0.60, nova: eu, nova: gosto, nova: de, nova: musica)
+         Eva: eu gosto de musica   [eco <feliz> <surpresa>]
+Voce: vou dormir cedo
+        (surpresa 1.00, dopamina 0.47, nova: vou, nova: dormir, nova: cedo)
+         Eva: vou   [resposta <feliz> <surpresa>]
+Voce: bom dia eva
+        (surpresa 0.00, dopamina 0.35)
+         Eva: bom dia eva   [eco <feliz>]
+Voce: eu gosto de musica  (com carinho)
+        (surpresa 0.00, dopamina 0.51)
+         Eva: dia eva   [resposta <feliz>]
+Voce: vou dormir cedo
+        (surpresa 0.90, dopamina 0.46)
+         Eva: vou dormir   [eco <feliz> <surpresa>]
+
+[Tarde] Silencio por 30 segundos.
+  [ 23.2s] Eva: eva   [pensamento <feliz> <curiosa>]
+  [ 27.2s] Eva: dia eva?   [pergunta <curiosa>]
+  [ 37.5s] Eva: eva   [pensamento <curiosa>]
+  [ 41.5s] Eva: vou dormir?   [pergunta <curiosa>]
+
+[Fim de tarde] Voce volta com carinho: a dopamina sobe, e <feliz> acende.
+        O que ela ouviu enquanto estava feliz deve voltar.
+Voce: oi eva  (com carinho)
+        (surpresa 0.90, dopamina 1.04, nova: oi)
+         Eva: vou oi gosto de musica bom   [resposta <feliz> <surpresa>]
+Voce: tudo bem  (com carinho)
+        (surpresa 1.00, dopamina 0.89, nova: tudo, nova: bem)
+         Eva: oi gosto de musica bom dia   [resposta <feliz> <surpresa>]
+
+[Noite] Eva dorme 20 s simulados.
+
+[Manha seguinte]
+Voce: bom dia eva
+        (surpresa 0.00, dopamina 0.35)
+         Eva: bom dia eva de vou oi   [eco]
+  [ 82.4s] Eva: musica dia eva dormir   [pensamento <curiosa>]
+  [ 85.4s] Eva: eva vou gosto de?   [pergunta <curiosa>]
+
+Fim.
