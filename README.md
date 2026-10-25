@@ -4,7 +4,7 @@ Um cérebro simulado em C++, inspirado na biologia, feito para conversar de verd
 
 Há duas Evas neste repositório:
 
-- **Eva 2** (`v2/`, executável `eva2`): um **córtex de colunas** (memória temporal hebbiana, no modelo de Hawkins/Numenta) ligado a um **mundo** onde ela percebe e age, com **olhos** (um córtex visual hebbiano que vê, lembra e imagina imagens). Frases longas, contexto longo, memória que persiste em disco entre conversas, e **sentido**: palavras ancoradas no que ela vê, faz e sente. É a que conversa.
+- **Eva 2** (`v2/`, executável `eva2`): um **córtex de colunas** (memória temporal hebbiana, no modelo de Hawkins/Numenta) ligado a um **mundo** onde ela percebe e age, com **olhos** (um córtex visual hebbiano que vê, lembra e imagina imagens) e **gramática que emerge** (ela descobre sozinha as espécies de palavras ouvindo 20 mil frases de uma casa, e diz frases certas que nunca ouviu). Frases longas, contexto longo, memória que persiste em disco entre conversas, e **sentido**: palavras ancoradas no que ela vê, faz e sente. É a que conversa.
 - **Eva 1** (`src/`, executável `eva`): neurônios de pulsos ms a ms, hipocampo, sono, dopamina. É onde tudo começou, e onde ficaram os experimentos e as medições que levaram à Eva 2. Está documentada mais abaixo.
 
 ## Eva 2 em uma página
@@ -27,7 +27,7 @@ Há duas Evas neste repositório:
 | 2 | **73%** | **112/160** |
 | 3 | 77% | 122/160 |
 
-Boa parte dos erros restantes é ambiguidade legítima do começo ("eu vou" → trabalhar? dormir? viajar?). Roda em 1 segundo. Para comparar: a Eva 1 chegava a 80% em 3 frases curtas *sem* palavra compartilhada, e caía a 55% com uma só palavra compartilhada.
+(Hoje, com o córtex escalável e a punição de previsão errada corrigida, 2 exposições dão **82%** e 121/160; veja "Gramática que emerge".) Boa parte dos erros restantes é ambiguidade legítima do começo ("eu vou" → trabalhar? dormir? viajar?). Roda em 1 segundo. Para comparar: a Eva 1 chegava a 80% em 3 frases curtas *sem* palavra compartilhada, e caía a 55% com uma só palavra compartilhada.
 
 **Conversa real, sem edição** (primeira sessão, do zero):
 
@@ -124,11 +124,11 @@ O código de V2 entra no córtex de sequências como um código esparso (cada un
 
 | voltas pela casa (apontando) | nomeou certo (desenho novo) | imaginou certo¹ | "vamos para a praia" | "pega a flor" |
 |---|---|---|---|---|
-| 1 | 44% | 89% | 0/8 | 4/8 |
-| 2 | 65% | 92% | 0/8 | 7/8 |
-| 4 | 72% | 94% | 8/8 | 8/8 |
-| 8 | 79% | 96% | 8/8 | 8/8 |
-| 4, sem apontar | 21% | 40% | 1/8 | 5/8 |
+| 1 | 46% | 85% | 0/8 | 6/8 |
+| 2 | 51% | 88% | 0/8 | 6/8 |
+| 4 | 71% | 94% | 8/8 | 8/8 |
+| 8 | 78% | 99% | 8/8 | 8/8 |
+| 4, sem apontar | 22% | 32% | 1/8 | 3/8 |
 
 ¹ a imagem gerada pela palavra fica mais perto (erro por pixel) de desenhos novos daquele objeto do que de qualquer outro.
 
@@ -152,7 +152,86 @@ Da demonstração (`imagens/demo_imagina.png`): "mar", "flor", "cama", "pão" e 
 
 **O desconhecido.** "flor mar" ela imagina porque conhece as partes. Uma palavra que nunca ouviu ("casa") não evoca nada — e é assim mesmo: ninguém imagina uma palavra sem sentido; imagina-se uma *descrição* feita de partes conhecidas. Juntar mais partes ("uma árvore na praia de noite") é o passo seguinte: já funciona para duas coisas, e o mundo pode ganhar mais partes (cores, tamanhos, posições) para que as descrições componham.
 
-**O que isto é e o que não é.** É sentido no único modo em que ele existe: a palavra "mar" nela está ligada a uma percepção que muda o que ela faz, e agora a percepção é uma imagem que ela pode lembrar e recombinar. Não é visão humana: 32×32 pixels, desenhos simples, sem profundidade nem movimento, e ela não tem gramática. Mas a arquitetura é a certa, e ela cresce com o mundo: cada objeto, lugar ou sensação a mais é uma coisa a mais que as palavras podem significar.
+**O que isto é e o que não é.** É sentido no único modo em que ele existe: a palavra "mar" nela está ligada a uma percepção que muda o que ela faz, e agora a percepção é uma imagem que ela pode lembrar e recombinar. Não é visão humana: 32×32 pixels, desenhos simples, sem profundidade nem movimento. Mas a arquitetura é a certa, e ela cresce com o mundo: cada objeto, lugar ou sensação a mais é uma coisa a mais que as palavras podem significar.
+
+## Gramática que emerge
+
+Até aqui ela repetia sequências que tinha ouvido. Uma criança de 2 anos faz mais que isso: ouve "o gato é bonito" e "eu vejo a girafa" e diz, sem nunca ter ouvido, "a girafa é bonita". Para isso ela precisa saber que "gato" e "girafa" são da mesma espécie de palavra. Ninguém conta isso a ela. Agora a Eva também descobre sozinha.
+
+**Como funciona** (três peças novas, todas locais e sem professor):
+
+1. **Categorias pelo uso** (`v2/categories.hpp`). Para cada palavra, ela conta os vizinhos imediatos (o que vem antes, o que vem depois), mas só os vizinhos frequentes contam como contexto ("o", "a", "é", "de", começo e fim de frase), pesados pela surpresa (PPMI). E ouve a terminação da palavra ("bonit**a**", "cas**a**": o gênero no português se ouve). Esse perfil passa por uma projeção aleatória esparsa e uma competição de k vencedores, como o cérebro da mosca faz com cheiros (Dasgupta et al., 2017): perfis parecidos dão códigos parecidos. É a ideia dos "frames frequentes" da aquisição de linguagem (Redington, Chater e Finch, 1998; Mintz, 2003), num circuito neural. Uma palavra ganha categoria depois de ouvida 4 vezes; no sono, as categorias se reorganizam e as conversas regravadas passam a usá-las.
+2. **Um segundo córtex, uma área acima** (`ctm_` em `v2/eva2.cpp`). O mesmo algoritmo de colunas, mas recebendo o código de categoria em vez da identidade da palavra: ele aprende sequências de *espécies* de palavras ("artigo masculino, substantivo masculino, é, adjetivo masculino"). As duas áreas trabalham ao mesmo tempo (cada uma num núcleo do processador).
+3. **Memória primeiro, gramática quando a memória falha.** Na hora de falar: se o córtex de palavras reconhece o contexto, ela diz o que lembra. Se a última palavra chegou de surpresa (contexto novo), o que a memória sugere é só um chute (tudo que já veio depois daquela palavra em qualquer frase), e a gramática decide: dos chutes ficam os que cabem; se nenhum cabe, ou se a gramática apoia outra espécie de palavra com muito mais força, ela escolhe uma palavra da espécie que a gramática prevê.
+
+**Escala de criança.** O teste não usa 20 frases: usa a fala de uma casa. `v2/corpus.hpp` é uma gramática do português falado com criança: **~770 palavras** (o vocabulário de uma criança de 2 a 3 anos), 19 moldes de frase, concordância de gênero e número, restrições de sentido (quem come é bicho ou gente, o que se come é comida), frequência zipfiana como na fala real. Ela ouve **20.000 frases** em 10 "dias" de 2.000, dormindo toda noite. A mesma gramática gera o que ela ouve e verifica o que ela diz; ela nunca vê a gramática.
+
+**O teste de verdade: frases que ela nunca ouviu.** 20% dos bichos e pessoas são **retidos**: ela só os ouve como objeto ("eu vejo o cachorro", "cadê os macacos", "é um elefante"), nunca como sujeito. Depois começamos a frase por eles ("o cachorro ...") e ela continua.
+
+Medido (`logs/grammar.txt`; `eva2_grammar 10 2000 300 2`: 2 cérebros, cada um com seu sorteio de palavras retidas):
+
+| dia (frases ouvidas) | sujeitos retidos, **com** a gramática: frase certa¹ | os mesmos, **sem** a gramática | sujeitos conhecidos, com / sem a gramática | categoria do vizinho mais parecido é a mesma classe² |
+|---|---|---|---|---|
+| 1 (2.000) | 2% | 0% | 54% / 70% | 83% |
+| 2 (4.000) | 19% | 0% | 71% / 74% | 87% |
+| 4 (8.000) | 44% | 0% | 71% / 62% | 89% |
+| 8 (16.000) | 50% | 0% | 71% / 73% | 92% |
+| 10 (20.000) | **56%** | **0%** | **76% / 65%** | **93%** |
+
+![curva de aprendizado da gramática](imagens/gramatica_curva.png)
+
+¹ a frase inteira casa com algum molde da gramática **e** concorda em gênero e número. Todas as certas com sujeito retido são frases que ela nunca ouviu.
+² classe fina: substantivo masculino singular, adjetivo feminino plural, verbo no plural etc. (94% pela classe gramatical só).
+
+"Sem a gramática" é o **mesmo cérebro** com o córtex de categorias desligado só na hora de falar. Sem ela, com sujeito retido, ela não diz nada (100% de silêncio): a memória de palavras só sabe que depois de "cachorro" a frase acaba. Com ela, depois de 20 mil frases:
+
+```
+o cachorro é gostoso              ok  [nunca ouviu]
+os cachorros querem arrumar       ok  [nunca ouviu]
+o macaco é limpo                  ok  [nunca ouviu]
+os elefantes estão na casa        ok  [nunca ouviu]
+os peixes estão no jardim         ok  [nunca ouviu]
+o boi é branco                    ok  [nunca ouviu]
+```
+
+E os erros dela são erros de criança: "os cavalos **são** no sofá" (mistura *ser* e *estar*), "o cavalo é muito **fria**" (concordância), "o porco come as canecas" (gramatical, sentido estranho), e às vezes emenda uma frase na outra ("o leão vê as tias são no banheiro").
+
+As categorias que emergiram (vizinhos mais parecidos, do log):
+
+```
+gato     -> pato rato apito biscoito prato sapato        (substantivos masculinos; a terminação puxa "apito")
+bonito   -> amarelo claro bagunçado lento curto roxo      (adjetivos masculinos)
+correm   -> sorriem sobem dormem saem descem comem        (verbos no plural)
+brincar  -> arrumar contar cozinhar dançar nadar olhar    (infinitivos)
+```
+
+Ela também tem **infância** agora: `./build/eva2 --nova --infancia 20000` faz ela ouvir 20 mil frases da casa (dormindo a cada 2.000) antes de conversar com você; `/ouvir N` dá mais, e `/categoria palavra` mostra de que espécie ela acha que uma palavra é. Uma sessão real (`logs/infancia_conversa.txt`), depois de 20 mil frases:
+
+```
+completar o cachorro   ->  o cachorro ... está na praia
+completar a girafa     ->  a girafa ... gosta da borboleta
+completar as vacas     ->  as vacas ... querem andar
+completar eu gosto     ->  eu gosto ... da irmã
+completar vamos        ->  vamos ... livros                       <- erro
+completar os macacos   ->  os macacos ... rolam os amigos comem as focas   <- emendou duas frases
+Voce: o gato é bonito
+         Eva: o arroz está no chão   [eco <curiosa> <surpresa>]
+Voce: a vaca come a banana
+         Eva: o chocolate   [resposta]
+```
+
+Repare no que a conversa mostra, sem enfeite: o que ela diz agora é quase sempre **gramatical**, mas ainda **não é sobre o que você disse** ("o gato é bonito" → "o arroz está no chão"). A gramática diz que espécie de palavra cabe; quem escolhe *qual* palavra ainda é a sorte. Ligar essa escolha ao sentido (ao que ela vê e ao que acabou de ouvir) é o próximo passo, e é o que separa isto de uma conversa.
+
+**O que não funcionou (medido, e ficou documentado):**
+
+- **Categorias como colunas a mais no mesmo córtex.** A primeira versão somava as colunas de categoria às de identidade da palavra, num córtex só. As palavras da mesma espécie passaram a compartilhar células e os contextos se misturaram: "eu gosto de..." puxava "aprender" de "eu quero aprender". O teste de frases caiu de 77% para 54%. A solução foi a de cima: uma área separada, mais abstrata.
+- **Punição forte de previsão errada apagava lembranças.** O córtex enfraquecia em 0,02 cada sinapse que previa algo que não veio. Com a sinapse nascendo em 0,51 (limiar 0,50), uma única frase diferente desligava o que tinha sido aprendido. Em fala variada isso é fatal: depois de "a" vêm centenas de palavras. Com 0,004, a surpresa média ao ouvir caiu de 0,46 para 0,27, e o teste de frases subiu de 77% para 82%.
+- **A gramática vetando a memória segura** (quando as duas estavam seguras e discordavam): piorou as frases decoradas (82% → 71%) e os sujeitos conhecidos (68% → 60% no dia 4). Desligado.
+- **"Contexto novo depois de surpresa" no córtex de categorias** (não reaproveitar a célula que já casava quando a coluna explode, para não fundir contextos): igual no dia 4 (44%), muito pior no dia 10 (25% contra 56%). Desligado; o log está em `logs/grammar_fresh_context.txt`.
+
+**Escala e velocidade.** Para ouvir 20 mil frases, o córtex precisou mudar por dentro (`v2/temporal_memory.cpp`): antes, cada passo percorria todos os segmentos (13 frases por segundo, caindo); agora cada célula sabe onde estão as sinapses que saem dela, e um passo só toca o que sai das células ativas. Cada sinapse ocupa 4 bytes (24 bits de célula + 8 de permanência, com arredondamento estocástico para que passos menores que 1/255 ainda contem) e mais 4 no índice. Aqui (2 núcleos), ela ouve ~30 frases por segundo; depois de 20 mil frases tem **16 milhões de sinapses** (11 no córtex de palavras, 5 no de categorias) e ocupa 225 MB. `--grande` usa um córtex de 16.384 colunas × 32 células (e 4.096 × 32 de categorias), pensado para uma máquina com 16 GB: a 8 bytes por sinapse com o índice, ~1 bilhão de sinapses cabem. A versão para GPU (CUDA) ainda não existe: vale portar quando a arquitetura parar de mudar.
+
+**O que isto é e o que não é.** É gramática no sentido em que uma criança de 2 anos tem gramática: espécies de palavras descobertas pelo uso, sequências de espécies, e substituição produtiva com concordância, aprendidas só ouvindo. Não é sintaxe adulta: o corpus tem frases de 2 a 6 palavras, sem orações subordinadas, perguntas ou tempo verbal, e a escolha da palavra dentro da espécie ainda é quase aleatória (por isso "o porco come as canecas"). O próximo passo é a palavra ser escolhida pelo que ela quer dizer (o que está vendo, o que lembra), não só pelo que cabe.
 
 ## Resultados, logs e imagens
 
@@ -162,8 +241,11 @@ Da demonstração (`imagens/demo_imagina.png`): "mar", "flor", "cama", "pão" e 
 
 | o quê | resultado | log |
 |---|---|---|
-| frases longas (20 frases, 2 exposições, 8 sementes) | 77% das palavras, 118/160 frases inteiras | `logs/bench2.txt` |
-| nomear desenhos novos (4 voltas apontando) | 72% (79% com 8 voltas) | `logs/ground.txt` |
+| frases longas (20 frases, 2 exposições, 8 sementes) | 82% das palavras, 121/160 frases inteiras | `logs/bench2.txt` |
+| gramática: começar a frase com um bicho que ela só ouviu como objeto (20 mil frases) | 56% frases certas e novas com a gramática; 0% sem ela | `logs/grammar.txt` |
+| gramática: sujeitos conhecidos (20 mil frases) | 76% com a gramática; 65% sem | `logs/grammar.txt` |
+| categorias: o vizinho mais parecido é da mesma classe (20 mil frases) | 93% | `logs/grammar.txt`, `logs/categories_test.txt` |
+| nomear desenhos novos (4 voltas apontando) | 71% (78% com 8 voltas) | `logs/ground.txt` |
 | imaginar pela palavra (4 voltas) | 94% parece mais com a coisa certa | `logs/ground.txt` |
 | entender "vamos para a praia" / "pega a flor" | 8/8 e 8/8 | `logs/ground.txt` |
 | só o córtex visual | erro de imaginação 0,08 por pixel; mesma coisa 0,49 / coisas diferentes 0,02 de sobreposição | `logs/vision_test.txt` |
@@ -176,6 +258,9 @@ cmake --build build        # requer PIL (python3 -m pip install pillow) só para
 ./build/eva2             # conversar com a Eva 2 (lembra de conversas anteriores)
 ./build/eva2 --demo      # demonstração automática
 ./build/eva2 --nova      # começar sem memória
+./build/eva2 --nova --infancia 20000   # antes de conversar, ela ouve 20 mil frases de uma casa (~12 min aqui)
+./build/eva2 --grande    # córtex grande (16.384 colunas x 32 células), para máquinas com 16 GB
+./build/eva2_grammar 10 2000 300 2     # a medição de gramática (veja v2/tests/README.md para todas)
 ./build/eva              # Eva 1: demonstração
 ./build/eva --conversa   # Eva 1: conversar
 ```

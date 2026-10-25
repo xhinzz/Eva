@@ -20,6 +20,10 @@ int main(int argc, char** argv) {
     int seeds = 8, total_words = 0, ok_words = 0, full = 0, total = 0;
     for (int seed = 1; seed <= seeds; ++seed) {
         eva2::Eva2Config c; c.memory_file = "/dev/null"; c.diary_file = "/dev/null";
+        if (getenv("CAT")) c.categories_enabled = atoi(getenv("CAT"));
+        if (getenv("MINC")) c.categories.min_count = atof(getenv("MINC"));
+        if (getenv("DEC")) c.tm.predicted_decrement = atof(getenv("DEC"));
+        if (getenv("INIT")) c.tm.initial_permanence = atof(getenv("INIT"));
         eva2::Eva2 e(c, seed);
         std::vector<std::vector<std::string>> sents;
         for (auto s : corpus) { std::istringstream in(s); std::vector<std::string> w; for (std::string x; in >> x;) w.push_back(x); sents.push_back(w); }

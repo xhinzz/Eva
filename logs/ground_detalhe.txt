@@ -1,21 +1,21 @@
-  ve cama    -> cama 
-  ve janela  -> 
+  ve cama    -> mesa 
+  ve janela  -> janela 
   ve mesa    -> mesa 
   ve cafe    -> cafe 
-  ve flor    -> jardim 
-  ve arvore  -> arvore 
-  ve mar     -> mar 
+  ve flor    -> flor 
+  ve arvore  -> janela 
+  ve mar     -> areia 
   ve areia   -> areia 
-  ve sol     -> na praia 
+  ve sol     -> sol 
   ve barco   -> barco 
-  imagina 'cama   ' (forca 0.32) -> parece cama
-  imagina 'janela ' (forca 0.19) -> parece janela
-  imagina 'mesa   ' (forca 0.28) -> parece mesa
-  imagina 'cafe   ' (forca 0.22) -> parece cafe
-  imagina 'flor   ' (forca 0.23) -> parece flor
+  imagina 'cama   ' (forca 0.18) -> parece cama
+  imagina 'janela ' (forca 0.26) -> parece arvore
+  imagina 'mesa   ' (forca 0.23) -> parece mesa
+  imagina 'cafe   ' (forca 0.23) -> parece cafe
+  imagina 'flor   ' (forca 0.30) -> parece flor
   imagina 'arvore ' (forca 0.27) -> parece arvore
-  imagina 'mar    ' (forca 0.23) -> parece mar
-  imagina 'areia  ' (forca 0.21) -> parece areia
-  imagina 'sol    ' (forca 0.28) -> parece sol
-  imagina 'barco  ' (forca 0.26) -> parece barco
-apontando, 4 voltas, 1 sementes: nomeou 9/10, nome certo 7/10 (70%) | imaginou certo 10/10 (100%) | foi a praia 1/1 | pegou a flor 1/1
+  imagina 'mar    ' (forca 0.16) -> parece mesa
+  imagina 'areia  ' (forca 0.24) -> parece areia
+  imagina 'sol    ' (forca 0.23) -> parece sol
+  imagina 'barco  ' (forca 0.28) -> parece barco
+apontando, 4 voltas, 1 sementes: nomeou 10/10, nome certo 7/10 (70%) | imaginou certo 8/10 (80%) | foi a praia 1/1 | pegou a flor 1/1

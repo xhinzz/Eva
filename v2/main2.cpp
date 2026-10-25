@@ -2,6 +2,7 @@
 //   ./build/eva2             conversar (ela lembra de conversas anteriores)
 //   ./build/eva2 --demo      demonstração automática
 //   ./build/eva2 --nova      começa sem memória
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -10,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "corpus.hpp"
 #include "eva2.hpp"
 
 using eva2::Eva2;
@@ -167,6 +169,8 @@ static void help() {
         "  /aponta objeto          aponte para algo que ela ve; a proxima frase sua cola nele\n"
         "  /nomear objeto          o que ela diria vendo so esse objeto (teste de sentido)\n"
         "  /sentido palavra        o que a palavra evoca nela (percepcoes, com forca)\n"
+        "  /ouvir N                ela ouve N frases da fala de uma casa (e dorme a cada 2000)\n"
+        "  /categoria palavra      de que especie ela acha que a palavra e (as mais parecidas)\n"
         "  /imaginar palavras...   a imagem que as palavras evocam nela (varias = mistura) -> imaginou.ppm\n"
         "  /olhar                  o que os olhos dela veem agora e como ela lembra cada coisa -> olhar.ppm\n"
         "  estado                  dopamina, humor, impulsos, estados, tamanho da memoria\n"
@@ -176,10 +180,59 @@ static void help() {
         "em eva2_memoria.bin; o diario da conversa, em eva2_diario.txt.\n\n");
 }
 
-static void converse(bool fresh) {
-    Eva2 e;
+// Infância: ela ouve a fala de uma casa (corpus.hpp: ~770 palavras, frases de
+// quem fala com criança) por "dias", dormindo toda noite. É assim que ela
+// chega à conversa com vocabulário e gramática, em vez de só com o que você
+// disser. Ninguém ensina regra: ela só ouve.
+static void grow(Eva2& e, int sentences, unsigned seed) {
+    static corpus::Grammar home(seed);
+    const int per_day = 2000;
+    int day = 0;
+    for (int done = 0; done < sentences; ++day) {
+        const int today = std::min(per_day, sentences - done);
+        double surprise = 0;
+        for (int i = 0; i < today; ++i) surprise += e.listen(home.sentence());
+        done += today;
+        e.sleep(300);
+        size_t words = 0;
+        for (size_t k = 0; k < e.vocab().words.size(); ++k) words += !eva2::Vocabulary::internal(e.vocab().words[k]);
+        std::printf("        dia %d: ouviu %d frases (total %d); surpresa média %.2f; %zu palavras, %zu com categoria; %.1f mi de sinapses\n",
+                    day + 1, today, done, surprise / today, words, e.categories().words_with_code(),
+                    (e.cortex().n_synapses() + e.category_cortex().n_synapses()) / 1e6);
+        std::fflush(stdout);
+    }
+}
+
+static void show_category(const Eva2& e, const std::string& w) {
+    const auto& v = e.vocab();
+    const auto& c = e.categories();
+    const int a = v.id(w);
+    if (a < 0 || !c.has_code(a)) { std::printf("         (%s ainda nao tem categoria: ouviu %.0f vezes)\n", w.c_str(), c.count(a)); return; }
+    std::vector<std::pair<float, int>> sims;
+    for (int b = 0; b < static_cast<int>(v.words.size()); ++b)
+        if (b != a && c.has_code(b) && !eva2::Vocabulary::internal(v.words[b])) sims.push_back({c.similarity(a, b), b});
+    std::sort(sims.rbegin(), sims.rend());
+    std::printf("         '%s' (ouviu %.0f vezes) e da especie de:", w.c_str(), c.count(a));
+    for (size_t i = 0; i < sims.size() && i < 8; ++i) std::printf(" %s(%.2f)", v.words[sims[i].second].c_str(), sims[i].first);
+    std::printf("\n");
+}
+
+static eva2::Eva2Config config_for(bool big) {
+    eva2::Eva2Config c;
+    if (big) c = eva2::Eva2Config::big();
+    return c;
+}
+
+static void converse(bool fresh, bool big, int childhood) {
+    Eva2 e(config_for(big));
     if (!fresh && e.load()) std::printf("(Eva lembra: %zu turnos, %zu palavras, %d segmentos)\n", e.turns(), e.vocab().words.size(), e.segments());
     else std::printf("(Eva nova, sem memoria)\n");
+    if (childhood > 0) {
+        std::printf("(infancia: ela vai ouvir %d frases da fala de uma casa, dormindo a cada 2000)\n", childhood);
+        grow(e, childhood, 7);
+        e.save();
+        std::printf("        (memoria salva)\n");
+    }
     help();
     std::string line;
     while (true) {
@@ -249,13 +302,17 @@ static void converse(bool fresh) {
             std::printf("\n");
             continue;
         }
+        if (w[0] == "/ouvir") { grow(e, w.size() > 1 ? std::atoi(w[1].c_str()) : 2000, 7); continue; }
+        if (w[0] == "/categoria" && w.size() > 1) { show_category(e, w[1]); continue; }
         if (w[0] == "estado") {
             std::printf("        dopamina %.2f | humor %.2f | vontade de falar %.2f | curiosidade %.2f | estados:",
                         e.dopamine(), e.mood(), e.drives().talk, e.drives().curiosity);
             auto st = e.active_states();
             if (st.empty()) std::printf(" (nenhum)");
             for (auto& s : st) std::printf(" %s", s.c_str());
-            std::printf("\n        palavras %zu | segmentos %d | turnos %zu\n", e.vocab().words.size(), e.segments(), e.turns());
+            std::printf("\n        palavras %zu (%zu com categoria) | segmentos %d | sinapses %.2f mi (palavras) + %.2f mi (categorias) | turnos %zu\n",
+                        e.vocab().words.size(), e.categories().words_with_code(), e.segments(),
+                        e.cortex().n_synapses() / 1e6, e.category_cortex().n_synapses() / 1e6, e.turns());
             continue;
         }
         float reward = 0.0f;
@@ -267,7 +324,16 @@ static void converse(bool fresh) {
 }
 
 int main(int argc, char** argv) {
-    if (argc > 1 && std::strcmp(argv[1], "--demo") == 0) demo();
-    else converse(argc > 1 && std::strcmp(argv[1], "--nova") == 0);
+    bool fresh = false, big = false, run_demo = false;
+    int childhood = 0;
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--demo") == 0) run_demo = true;
+        else if (std::strcmp(argv[i], "--nova") == 0) fresh = true;
+        else if (std::strcmp(argv[i], "--grande") == 0) big = true;
+        else if (std::strcmp(argv[i], "--infancia") == 0) childhood = (i + 1 < argc) ? std::atoi(argv[++i]) : 20000;
+        else { std::printf("uso: eva2 [--demo] [--nova] [--grande] [--infancia N]\n"); return 1; }
+    }
+    if (run_demo) demo();
+    else converse(fresh, big, childhood);
     return 0;
 }

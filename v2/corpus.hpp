@@ -1,0 +1,382 @@
+// Eva 2 - a fala que uma criança ouve em casa, em escala, e um verificador.
+//
+// Uma gramática pequena do português falado com criança ("o gato é bonito",
+// "cadê a bola", "vamos brincar", "a vaca come o capim") com ~800 palavras
+// (o vocabulário de uma criança de 2 a 3 anos), concordância de gênero e
+// número, e restrições de sentido (quem come é bicho ou gente; o que se come
+// é comida; "no/na" vai antes de lugar). As frases são sorteadas com
+// frequência zipfiana (algumas palavras aparecem muito, a maioria pouco),
+// como na fala real.
+//
+// A mesma gramática serve para GERAR o que ela ouve e para VERIFICAR o que
+// ela diz. Ela nunca vê a gramática: só as frases.
+//
+// Para medir generalização, uma parte dos bichos e pessoas é "retida": eles
+// só aparecem em posição de objeto ("eu vejo a girafa", "cadê a girafa",
+// "é uma girafa"), nunca como sujeito. O teste começa uma frase com eles
+// ("a girafa ...") e vê se ela continua de um jeito gramatical que nunca ouviu.
+#pragma once
+#include <algorithm>
+#include <cmath>
+#include <map>
+#include <random>
+#include <set>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+namespace corpus {
+
+enum Pos { DET, INDEF, NOUN, ADJ, COP, EST, LOC, DE, VI, VINF, COME, GOSTA, QUER, VE, LIT };
+enum Sem { ANIMAL = 1, PERSON = 2, FOOD = 4, OBJECT = 8, PLACE = 16 };
+constexpr int ANIM = ANIMAL | PERSON;
+constexpr int THING = ANIMAL | PERSON | FOOD | OBJECT;  // tudo menos lugar
+constexpr int ANY = THING | PLACE;
+
+struct Entry {
+    std::string word;
+    Pos pos;
+    char g = '*';   // m, f, * (invariável)
+    char n = '*';   // s, p, *
+    int sem = 0;
+    std::string lemma;
+    bool held = false;  // retido: só como objeto
+};
+
+// Uma posição de um molde de frase
+struct Slot {
+    Pos pos;
+    int gvar = -1, nvar = -1;  // variáveis de concordância (0..3)
+    int sem = ANY;
+    std::string lit;           // para LIT
+    bool subject = false;      // posição de sujeito (retidos não entram)
+    char fixn = 0;             // número fixo ('s'), quando o molde exige
+};
+
+struct Pattern {
+    std::string name;
+    std::vector<Slot> slots;
+    double weight;
+    bool predicative = false;  // molde onde retidos não entram em nenhuma posição de substantivo
+};
+
+inline std::vector<std::string> split(const std::string& s) {
+    std::istringstream in(s);
+    std::vector<std::string> v;
+    for (std::string x; in >> x;) v.push_back(x);
+    return v;
+}
+
+class Grammar {
+public:
+    explicit Grammar(unsigned seed = 11, double held_fraction = 0.2, double zipf = 0.7) : rng_(seed) {
+        build_lexicon();
+        build_patterns();
+        // retém uma fração dos bichos e pessoas (o par singular/plural junto)
+        std::vector<std::string> anim;
+        for (const auto& e : lex_) if (e.pos == NOUN && (e.sem & ANIM) && e.n == 's') anim.push_back(e.lemma);
+        std::sort(anim.begin(), anim.end());
+        anim.erase(std::unique(anim.begin(), anim.end()), anim.end());
+        std::shuffle(anim.begin(), anim.end(), rng_);
+        const size_t k = static_cast<size_t>(anim.size() * held_fraction);
+        for (size_t i = 0; i < k; ++i) held_.insert(anim[i]);
+        for (auto& e : lex_) if (e.pos == NOUN && held_.count(e.lemma)) e.held = true;
+        // pesos zipfianos dentro de cada grupo (mesma classe gramatical e de sentido)
+        std::map<std::string, std::vector<int>> groups;
+        for (int i = 0; i < static_cast<int>(lex_.size()); ++i) {
+            const auto& e = lex_[i];
+            groups[std::to_string(e.pos) + "/" + std::to_string(e.sem)].push_back(i);
+        }
+        weight_.assign(lex_.size(), 1.0);
+        for (auto& [k2, ids] : groups) {
+            std::vector<std::string> lemmas;
+            for (int i : ids) lemmas.push_back(lex_[i].lemma);
+            std::sort(lemmas.begin(), lemmas.end());
+            lemmas.erase(std::unique(lemmas.begin(), lemmas.end()), lemmas.end());
+            std::shuffle(lemmas.begin(), lemmas.end(), rng_);
+            std::map<std::string, double> w;
+            for (size_t r = 0; r < lemmas.size(); ++r) w[lemmas[r]] = 1.0 / std::pow(r + 1.0, zipf);
+            for (int i : ids) weight_[i] = w[lex_[i].lemma];
+        }
+        for (int i = 0; i < static_cast<int>(lex_.size()); ++i) by_word_[lex_[i].word].push_back(i);
+    }
+
+    // uma frase que ela ouve
+    std::vector<std::string> sentence() {
+        std::vector<double> pw;
+        for (const auto& p : patterns_) pw.push_back(p.weight);
+        std::discrete_distribution<size_t> pick(pw.begin(), pw.end());
+        for (int attempt = 0; attempt < 50; ++attempt) {
+            const Pattern& p = patterns_[pick(rng_)];
+            std::vector<std::string> out;
+            if (fill(p, out)) return out;
+        }
+        return {"cadê", "o", "gato"};
+    }
+
+    // ---------------------------------------------------------------- verificar
+    struct Check { bool syntax = false, agreement = false, semantics = false; std::string pattern; };
+    // A frase inteira casa com algum molde? syntax: classes certas; agreement:
+    // e concordância certa; semantics: e o sentido também.
+    Check check(const std::vector<std::string>& s) const {
+        Check best;
+        for (const auto& p : patterns_) {
+            if (p.slots.size() != s.size()) continue;
+            for (int level = 2; level >= 0; --level) {
+                if (match(p, s, level >= 1, level >= 2)) {
+                    Check c;
+                    c.syntax = true; c.agreement = level >= 1; c.semantics = level >= 2; c.pattern = p.name;
+                    if (score(c) > score(best)) best = c;
+                    break;
+                }
+            }
+        }
+        return best;
+    }
+
+    // começos de frase para o teste: "artigo + substantivo" de sujeito
+    std::vector<std::vector<std::string>> subject_starts(bool held) const {
+        std::vector<std::vector<std::string>> out;
+        for (const auto& e : lex_) {
+            if (e.pos != NOUN || !(e.sem & ANIM) || e.held != held) continue;
+            const char* det = e.g == 'm' ? (e.n == 's' ? "o" : "os") : (e.n == 's' ? "a" : "as");
+            out.push_back({det, e.word});
+        }
+        return out;
+    }
+
+    const std::vector<Entry>& lexicon() const { return lex_; }
+    const std::set<std::string>& held() const { return held_; }
+    size_t vocabulary_size() const { return by_word_.size(); }
+    // classe "verdadeira" de uma palavra (para medir se as categorias que emergem batem)
+    std::string gold(const std::string& w) const {
+        auto it = by_word_.find(w);
+        if (it == by_word_.end()) return "?";
+        const Entry& e = lex_[it->second.front()];
+        static const char* names[] = {"DET", "INDEF", "N", "ADJ", "COP", "EST", "LOC", "DE", "VI", "VINF", "COME", "GOSTA", "QUER", "VE", "LIT"};
+        std::string g = names[e.pos];
+        if (e.pos == LIT) return "LIT:" + w;
+        if (e.pos == NOUN || e.pos == ADJ || e.pos == DET || e.pos == INDEF || e.pos == LOC || e.pos == DE) g += std::string("_") + e.g;
+        if (e.pos != VINF) g += std::string("_") + e.n;
+        if (e.pos == COME || e.pos == GOSTA || e.pos == QUER || e.pos == VE || e.pos == COP || e.pos == EST) g = std::string("VT_") + e.n;
+        return g;
+    }
+    std::string pos_only(const std::string& w) const {
+        auto it = by_word_.find(w);
+        if (it == by_word_.end()) return "?";
+        const Entry& e = lex_[it->second.front()];
+        static const char* names[] = {"DET", "INDEF", "N", "ADJ", "COP", "EST", "LOC", "DE", "VI", "VINF", "COME", "GOSTA", "QUER", "VE", "LIT"};
+        return e.pos == LIT ? "LIT:" + w : names[e.pos];
+    }
+
+private:
+    static int score(const Check& c) { return c.syntax + c.agreement + c.semantics; }
+
+    bool fits(const Entry& e, const Slot& sl, const char* g, const char* n, bool agree, bool sem, bool for_generation) const {
+        if (sl.pos == LIT) return e.pos == LIT && e.word == sl.lit;
+        if (e.pos != sl.pos) return false;
+        if (sl.fixn && e.n != '*' && e.n != sl.fixn) return false;
+        if (agree) {
+            if (sl.gvar >= 0 && g[sl.gvar] && e.g != '*' && e.g != g[sl.gvar]) return false;
+            if (sl.nvar >= 0 && n[sl.nvar] && e.n != '*' && e.n != n[sl.nvar]) return false;
+        }
+        if (sem && sl.pos == NOUN && !(e.sem & sl.sem)) return false;
+        if (for_generation && e.held && sl.pos == NOUN && sl.subject) return false;
+        return true;
+    }
+    static void bind(const Entry& e, const Slot& sl, char* g, char* n) {
+        if (sl.gvar >= 0 && !g[sl.gvar] && e.g != '*') g[sl.gvar] = e.g;
+        if (sl.nvar >= 0 && !n[sl.nvar] && e.n != '*') n[sl.nvar] = e.n;
+    }
+
+    bool match(const Pattern& p, const std::vector<std::string>& s, bool agree, bool sem) const {
+        char g[4] = {0, 0, 0, 0}, n[4] = {0, 0, 0, 0};
+        // substantivos primeiro (eles fixam gênero e número), depois o resto
+        for (int pass = 0; pass < 2; ++pass)
+            for (size_t i = 0; i < s.size(); ++i) {
+                const Slot& sl = p.slots[i];
+                if ((pass == 0) != (sl.pos == NOUN)) continue;
+                auto it = by_word_.find(s[i]);
+                if (it == by_word_.end()) return false;
+                bool ok = false;
+                for (int idx : it->second) {
+                    const Entry& e = lex_[idx];
+                    if (fits(e, sl, g, n, agree, sem, false)) { bind(e, sl, g, n); ok = true; break; }
+                }
+                if (!ok) return false;
+            }
+        return true;
+    }
+
+    bool fill(const Pattern& p, std::vector<std::string>& out) {
+        if (p.predicative) {}  // retidos já ficam fora pelo `subject` das posições
+        char g[4] = {0, 0, 0, 0}, n[4] = {0, 0, 0, 0};
+        out.assign(p.slots.size(), "");
+        for (int pass = 0; pass < 2; ++pass)
+            for (size_t i = 0; i < p.slots.size(); ++i) {
+                const Slot& sl = p.slots[i];
+                if ((pass == 0) != (sl.pos == NOUN)) continue;
+                if (sl.pos == LIT) { out[i] = sl.lit; continue; }
+                std::vector<int> ids;
+                std::vector<double> w;
+                for (int k = 0; k < static_cast<int>(lex_.size()); ++k) {
+                    const Entry& e = lex_[k];
+                    if (!fits(e, sl, g, n, true, true, true)) continue;
+                    if (p.predicative && e.held) continue;
+                    ids.push_back(k);
+                    w.push_back(weight_[k]);
+                }
+                if (ids.empty()) return false;
+                std::discrete_distribution<size_t> pick(w.begin(), w.end());
+                const Entry& e = lex_[ids[pick(rng_)]];
+                bind(e, sl, g, n);
+                out[i] = e.word;
+            }
+        return true;
+    }
+
+    void add_noun(const std::string& spec, char g, int sem) {
+        // "leão/leões" ou "gato" (plural regular)
+        std::string sg = spec, pl;
+        const auto slash = spec.find('/');
+        if (slash != std::string::npos) { sg = spec.substr(0, slash); pl = spec.substr(slash + 1); }
+        else pl = plural(sg);
+        lex_.push_back({sg, NOUN, g, 's', sem, sg});
+        if (sem != PLACE && !pl.empty() && pl != "-") lex_.push_back({pl, NOUN, g, 'p', sem, sg});
+    }
+    static bool ends(const std::string& s, const std::string& suf) { return s.size() >= suf.size() && s.compare(s.size() - suf.size(), suf.size(), suf) == 0; }
+    static std::string plural(const std::string& s) {
+        if (ends(s, "r") || ends(s, "z")) return s + "es";
+        if (ends(s, "m")) return s.substr(0, s.size() - 1) + "ns";
+        if (ends(s, "l")) return s.substr(0, s.size() - 1) + "is";
+        return s + "s";
+    }
+    void add_adj(const std::string& spec) {
+        // "bonito" (varia -o/-a), "grande" ou "azul/azuis" (invariável em gênero)
+        std::string base = spec, pl;
+        const auto slash = spec.find('/');
+        if (slash != std::string::npos) { base = spec.substr(0, slash); pl = spec.substr(slash + 1); }
+        if (slash == std::string::npos && ends(base, "o")) {
+            const std::string stem = base.substr(0, base.size() - 1);
+            lex_.push_back({stem + "o", ADJ, 'm', 's', 0, base});
+            lex_.push_back({stem + "a", ADJ, 'f', 's', 0, base});
+            lex_.push_back({stem + "os", ADJ, 'm', 'p', 0, base});
+            lex_.push_back({stem + "as", ADJ, 'f', 'p', 0, base});
+        } else {
+            if (pl.empty()) pl = plural(base);
+            lex_.push_back({base, ADJ, '*', 's', 0, base});
+            lex_.push_back({pl, ADJ, '*', 'p', 0, base});
+        }
+    }
+    void add_verb(Pos pos, const std::string& sg, const std::string& pl) {
+        lex_.push_back({sg, pos, '*', 's', 0, sg});
+        lex_.push_back({pl, pos, '*', 'p', 0, sg});
+    }
+    void lit(const std::string& w) { lex_.push_back({w, LIT, '*', '*', 0, w}); }
+
+    void build_lexicon() {
+        for (auto s : split("cachorro gato cavalo porco pato leão/leões tigre macaco elefante urso coelho sapo peixe pássaro rato "
+                            "boi galo lobo jacaré papagaio camelo burro bode pinguim golfinho tubarão/tubarões gorila hipopótamo canguru pavão/pavões"))
+            add_noun(s, 'm', ANIMAL);
+        for (auto s : split("vaca galinha girafa zebra ovelha cobra tartaruga borboleta abelha formiga aranha baleia coruja raposa onça "
+                            "foca arara joaninha minhoca lagarta cabra pata gata cachorra égua barata lula lontra preguiça toupeira"))
+            add_noun(s, 'f', ANIMAL);
+        for (auto s : split("menino papai vovô bebê irmão/irmãos tio amigo moço homem médico professor palhaço"))
+            add_noun(s, 'm', PERSON);
+        for (auto s : split("menina mamãe vovó irmã tia amiga moça mulher professora médica princesa bruxa"))
+            add_noun(s, 'f', PERSON);
+        for (auto s : split("pão/pães bolo queijo leite suco biscoito ovo arroz/- feijão/feijões mamão/mamões milho sorvete chocolate iogurte "
+                            "abacaxi morango tomate chá mel/- presunto pudim café doce pastel/pastéis sanduíche"))
+            add_noun(s, 'm', FOOD);
+        for (auto s : split("banana maçã pera uva laranja melancia cenoura batata sopa pizza torta bolacha gelatina manga salada "
+                            "carne fruta pipoca mexerica goiaba ameixa cereja abóbora coxinha tapioca"))
+            add_noun(s, 'f', FOOD);
+        for (auto s : split("carro livro sapato chapéu copo prato brinquedo balão/balões trem avião/aviões barco caminhão/caminhões lápis/- "
+                            "telefone relógio travesseiro cobertor pente boné tambor robô apito dado sino papel/papéis botão/botões garfo "
+                            "cesto martelo carrinho ursinho baldinho pião/piões"))
+            add_noun(s, 'm', OBJECT);
+        for (auto s : split("bola boneca cadeira mesa caneca colher faca camiseta meia cama porta janela bicicleta mochila caixa chave "
+                            "flor árvore pedra folha estrela lua nuvem escova toalha panela bolsa pipa peteca corda televisão/televisões "
+                            "lanterna tesoura almofada xícara"))
+            add_noun(s, 'f', OBJECT);
+        for (auto s : split("quarto banheiro jardim parque sofá quintal mercado zoológico berço chão tapete escorregador"))
+            add_noun(s, 'm', PLACE);
+        for (auto s : split("cozinha sala escola praia rua casa piscina varanda garagem fazenda floresta praça"))
+            add_noun(s, 'f', PLACE);
+
+        for (auto s : split("bonito pequeno lindo gostoso cheiroso novo velho sujo limpo molhado seco cansado quieto rápido lento "
+                            "gordo magro branco preto amarelo vermelho roxo redondo quentinho gelado fofo bravo feio escuro claro "
+                            "alto baixo cheio vazio macio duro pesado engraçado assustado sozinho comprido curto frio bagunçado "
+                            "arrumado perfumado dourado listrado pintado escondido"))
+            add_adj(s);
+        for (auto s : split("grande verde azul/azuis feliz/felizes triste quente forte legal/legais enorme alegre marrom/marrons "
+                            "gentil/gentis veloz/velozes inteligente valente elegante"))
+            add_adj(s);
+
+        const char* vi[][2] = {{"corre", "correm"}, {"dorme", "dormem"}, {"pula", "pulam"}, {"brinca", "brincam"}, {"chora", "choram"},
+                               {"ri", "riem"}, {"canta", "cantam"}, {"dança", "dançam"}, {"nada", "nadam"}, {"voa", "voam"},
+                               {"anda", "andam"}, {"mia", "miam"}, {"late", "latem"}, {"sorri", "sorriem"}, {"acorda", "acordam"},
+                               {"grita", "gritam"}, {"cai", "caem"}, {"senta", "sentam"}, {"sobe", "sobem"}, {"desce", "descem"},
+                               {"chega", "chegam"}, {"sai", "saem"}, {"volta", "voltam"}, {"espirra", "espirram"}, {"tosse", "tossem"},
+                               {"rola", "rolam"}};
+        for (auto& v : vi) add_verb(VI, v[0], v[1]);
+        for (auto s : split("brincar comer dormir passear nadar correr desenhar pintar cantar dançar ler pular jogar cozinhar andar "
+                            "sair voltar olhar contar escrever arrumar lavar beber subir descer esconder procurar assistir viajar"))
+            lex_.push_back({s, VINF, '*', '*', 0, s});
+        add_verb(COME, "come", "comem");
+        add_verb(GOSTA, "gosta", "gostam");
+        add_verb(QUER, "quer", "querem");
+        add_verb(VE, "vê", "veem");
+        add_verb(COP, "é", "são");
+        add_verb(EST, "está", "estão");
+        lex_.push_back({"o", DET, 'm', 's'}); lex_.push_back({"a", DET, 'f', 's'});
+        lex_.push_back({"os", DET, 'm', 'p'}); lex_.push_back({"as", DET, 'f', 'p'});
+        lex_.push_back({"um", INDEF, 'm', 's'}); lex_.push_back({"uma", INDEF, 'f', 's'});
+        lex_.push_back({"no", LOC, 'm', 's'}); lex_.push_back({"na", LOC, 'f', 's'});
+        lex_.push_back({"do", DE, 'm', 's'}); lex_.push_back({"da", DE, 'f', 's'});
+        lex_.push_back({"dos", DE, 'm', 'p'}); lex_.push_back({"das", DE, 'f', 'p'});
+        for (auto s : split("eu você vejo gosto quero cadê olha vamos muito de")) lit(s);
+        // "quer" também é literal em "você quer"; já está como QUER singular
+    }
+
+    static Slot S(Pos p, int g = -1, int n = -1, int sem = ANY, bool subject = false) { Slot s; s.pos = p; s.gvar = g; s.nvar = n; s.sem = sem; s.subject = subject; return s; }
+    static Slot L(const std::string& w) { Slot s; s.pos = LIT; s.lit = w; return s; }
+
+    void build_patterns() {
+        auto subj = [](int sem) { return S(NOUN, 0, 0, sem, true); };
+        patterns_ = {
+            {"N é ADJ", {S(DET, 0, 0), subj(ANY), S(COP, -1, 0), S(ADJ, 0, 0)}, 10, true},
+            {"N está no LUGAR", {S(DET, 0, 0), subj(THING), S(EST, -1, 0), S(LOC, 1, 1), S(NOUN, 1, 1, PLACE)}, 8},
+            {"N come COMIDA", {S(DET, 0, 0), subj(ANIM), S(COME, -1, 0), S(DET, 1, 1), S(NOUN, 1, 1, FOOD)}, 8},
+            {"eu vejo N", {L("eu"), L("vejo"), S(DET, 0, 0), S(NOUN, 0, 0, THING)}, 6},
+            {"eu gosto do N", {L("eu"), L("gosto"), S(DE, 0, 0), S(NOUN, 0, 0, THING)}, 5},
+            {"cadê N", {L("cadê"), S(DET, 0, 0), S(NOUN, 0, 0, THING)}, 6},
+            {"N VERBO", {S(DET, 0, 0), subj(ANIM), S(VI, -1, 0)}, 10},
+            {"vamos VERBO", {L("vamos"), S(VINF)}, 5},
+            {"olha N ADJ", {L("olha"), S(DET, 0, 0), S(NOUN, 0, 0, THING, true), S(ADJ, 0, 0)}, 6, true},
+            {"N é muito ADJ", {S(DET, 0, 0), subj(ANY), S(COP, -1, 0), L("muito"), S(ADJ, 0, 0)}, 4, true},
+            {"eu quero N", {L("eu"), L("quero"), S(DET, 0, 0), S(NOUN, 0, 0, FOOD | OBJECT)}, 5},
+            {"você quer COMIDA", {L("você"), S(QUER, -1, 2), S(DET, 0, 0), S(NOUN, 0, 0, FOOD)}, 4},
+            {"N ADJ está no LUGAR", {S(DET, 0, 0), subj(THING), S(ADJ, 0, 0), S(EST, -1, 0), S(LOC, 1, 1), S(NOUN, 1, 1, PLACE)}, 3, true},
+            {"é um N", {S(COP, -1, 0), S(INDEF, 1, 0), S(NOUN, 1, 0, THING)}, 5},
+            {"N gosta do N", {S(DET, 0, 0), subj(ANIM), S(GOSTA, -1, 0), S(DE, 1, 1), S(NOUN, 1, 1, THING)}, 4},
+            {"eu gosto de VERBO", {L("eu"), L("gosto"), L("de"), S(VINF)}, 3},
+            {"N quer VERBO", {S(DET, 0, 0), subj(ANIM), S(QUER, -1, 0), S(VINF)}, 3},
+            {"N vê N", {S(DET, 0, 0), subj(ANIM), S(VE, -1, 0), S(DET, 1, 1), S(NOUN, 1, 1, THING)}, 3},
+            {"olha N", {L("olha"), S(DET, 0, 0), S(NOUN, 0, 0, THING)}, 4},
+        };
+        // "você quer" e "é um N": singular
+        for (auto& p : patterns_) if (p.name == "você quer COMIDA") p.slots[1].fixn = 's';
+        for (auto& p : patterns_) if (p.name == "é um N") for (auto& sl : p.slots) sl.fixn = 's';
+    }
+
+    std::mt19937 rng_;
+    std::vector<Entry> lex_;
+    std::vector<Pattern> patterns_;
+    std::vector<double> weight_;
+    std::unordered_map<std::string, std::vector<int>> by_word_;
+    std::set<std::string> held_;
+};
+
+}  // namespace corpus

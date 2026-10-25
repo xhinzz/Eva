@@ -9,8 +9,11 @@
 // Toda palavra que ela diz é a previsão do córtex dela para o próximo passo,
 // dado tudo que veio antes na conversa.
 #pragma once
+#include <condition_variable>
+#include <mutex>
 #include <random>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "../src/drives.hpp"
@@ -20,6 +23,7 @@
 #include "world.hpp"
 #include "semantics.hpp"
 #include "vision.hpp"
+#include "categories.hpp"
 
 namespace eva2 {
 using eva::Dopamine;
@@ -28,6 +32,13 @@ using eva::Drives;
 struct Eva2Config {
     TMConfig tm;
     int sdr_columns = 2048, sdr_active = 40;
+    // Gramática que emerge: palavras ganham um código de categoria (categories.hpp)
+    // e um segundo córtex, acima, aprende sequências de categorias.
+    bool categories_enabled = true;
+    CategoryConfig categories;
+    TMConfig category_tm;
+    float category_match = 0.6f;   // fração do código de categoria que precisa estar prevista
+    float grammar_override = 1.5f; // a gramática passa por cima de um chute da memória se apoia outra espécie tanto mais
     int min_overlap = 16;        // colunas previstas que uma palavra precisa ter para ser "a próxima"
     int max_reply_words = 12;
     int max_actions_per_turn = 3;
@@ -46,6 +57,23 @@ struct Eva2Config {
     int turn_pause_ms = 3000;    // silêncio simulado depois de cada fala sua
     int context_turns = 6;       // quantos turnos anteriores o córtex relê antes de ouvir você (contexto longo)
     std::string memory_file = "eva2_memoria.bin";
+    // Tamanho grande, para uma máquina como RTX 5060 / Ryzen 7 9800X3D com 16 GB:
+    // 16.384 colunas de palavras × 32 células e 4.096 colunas de categorias × 32.
+    // Cabe ~1 bilhão de sinapses (8 bytes cada, contando o índice). O custo de
+    // cada passo cresce com as células por coluna, não com o número de colunas.
+    static Eva2Config big() {
+        Eva2Config c;
+        c.sdr_columns = 16384;
+        c.tm.cells_per_column = 32;
+        c.tm.max_segments_per_cell = 255;
+        c.categories.columns = 4096;
+        c.categories.active = 60;
+        c.category_tm.cells_per_column = 32;
+        c.category_tm.max_segments_per_cell = 255;
+        c.memory_file = "eva2_memoria_grande.bin";
+        c.diary_file = "eva2_diario_grande.txt";
+        return c;
+    }
     std::string diary_file = "eva2_diario.txt";
 };
 
@@ -74,9 +102,17 @@ struct Action {
 class Eva2 {
 public:
     explicit Eva2(Eva2Config cfg = {}, unsigned seed = 42);
+    ~Eva2();
+    Eva2(const Eva2&) = delete;
+    Eva2& operator=(const Eva2&) = delete;
 
     // Você fala. Ela vive a frase como sequência, com o estado dela por dentro.
     Heard hear(const std::vector<std::string>& words, float reward = 0.0f);
+    // Ela ouve sem ser com ela (a conversa da casa, alguém falando perto): grava
+    // a frase e o contexto das palavras, sem responder nem reler a conversa.
+    // É a maior parte do que uma criança ouve.
+    // Devolve a surpresa média (fração de colunas não previstas) das palavras.
+    float listen(const std::vector<std::string>& words, float dopamine = 0.5f);
     // Ela responde (ou não). Vem depois de `hear`.
     std::vector<Utterance> respond();
     // Ela age no mundo se o córtex previr uma ação (fome -> ir à cozinha -> pegar pão -> comer).
@@ -112,6 +148,15 @@ public:
     std::vector<std::string> complete(const std::vector<std::string>& start, int max_words = 12);
 
     const Vocabulary& vocab() const { return vocab_; }
+    const WordCategories& categories() const { return cats_; }
+    const TemporalMemory& cortex() const { return tm_; }
+    const TemporalMemory& category_cortex() const { return ctm_; }
+    // estatística: de onde veio cada palavra gerada (memória de palavras x gramática)
+    struct GenStats { long long memory = 0, grammar = 0, vetoed = 0; };
+    const GenStats& gen_stats() const { return gen_stats_; }
+    // para medir: liga/desliga o uso da gramática na fala (o aprendizado continua)
+    void set_grammar_in_speech(bool on) { grammar_in_speech_ = on; }
+    void set_grammar_checks_memory(bool on) { grammar_checks_memory_ = on; }
     const Drives& drives() const { return drives_; }
     float dopamine() const { return dopa_.level; }
     float mood() const { return dopa_.mood; }
@@ -144,12 +189,32 @@ private:
     std::mt19937 rng_;
     Vocabulary vocab_;
     TemporalMemory tm_;
+    TemporalMemory ctm_;  // córtex de categorias: sequências de espécies de palavras
+    GenStats gen_stats_;
+    bool grammar_in_speech_ = true;
+    bool grammar_checks_memory_ = false;  // testado: piora (veja README)
+    void step_token(int id, bool learn, float dopamine);
+    void reset_cortex();
+    // As duas áreas trabalham ao mesmo tempo, como no cérebro: o córtex de
+    // categorias roda numa segunda linha de execução enquanto o de palavras
+    // roda nesta. (Numa máquina com mais núcleos, cada área poderia ter os seus.)
+    std::thread area2_;
+    std::mutex area2_m_;
+    std::condition_variable area2_cv_;
+    bool area2_has_job_ = false, area2_stop_ = false;
+    std::vector<int> area2_cols_;
+    bool area2_learn_ = false;
+    float area2_dop_ = 1.0f;
+    void area2_loop();
     Dopamine dopa_;
     Drives drives_;
     float surprise_trace_ = 0.0f;
     std::vector<std::string> last_heard_;
     World world_;
     Semantics meaning_;  // córtex associativo: percepção <-> palavra
+    WordCategories cats_;  // categorias que emergem do uso
+    void observe_categories(const std::vector<std::string>& words);
+    void apply_category(int id);
     VisualCortex vision_;  // olhos e córtex visual
     std::vector<std::vector<int>> unit_columns_;  // cada unidade de V2 -> colunas do córtex de sequências
     std::vector<int> visual_sdr(const VisualCode& c) const;

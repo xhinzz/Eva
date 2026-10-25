@@ -1,0 +1,18 @@
+2000 frases: 327/660 palavras com categoria | vizinho mesma classe fina 83%, classe 86% | parecença mesma classe 0.25, outra 0.04
+5000 frases: 564/753 palavras com categoria | vizinho mesma classe fina 89%, classe 91% | parecença mesma classe 0.30, outra 0.05
+10000 frases: 698/770 palavras com categoria | vizinho mesma classe fina 90%, classe 93% | parecença mesma classe 0.33, outra 0.05
+20000 frases: 766/772 palavras com categoria | vizinho mesma classe fina 92%, classe 93% | parecença mesma classe 0.36, outra 0.05
+40000 frases: 772/772 palavras com categoria | vizinho mesma classe fina 94%, classe 94% | parecença mesma classe 0.38, outra 0.05
+20000 frases: 766/772 palavras com categoria | vizinho mesma classe fina 92%, classe 93% | parecença mesma classe 0.36, outra 0.05
+  gato     (N_m_s, 19x) -> pato(0.73) apito(0.60) cesto(0.57) biscoito(0.57) sapato(0.55) prato(0.52)
+  vaca     (N_f_s, 455x) -> minhoca(0.90) foca(0.77) raposa(0.60) tia(0.57) cabra(0.57) ovelha(0.55)
+  girafa   (N_f_s, 20x) -> toupeira(0.60) coruja(0.50) pata(0.47) ovelha(0.45) tartaruga(0.45) raposa(0.45)
+  bonito   (ADJ_m_s, 19x) -> baixo(0.68) amarelo(0.65) roxo(0.57) lento(0.57) claro(0.57) lindo(0.55)
+  bonita   (ADJ_f_s, 13x) -> quieta(0.47) pintada(0.47) comprida(0.43) listrada(0.43) cansada(0.40) cheia(0.40)
+  corre    (VI_s, 39x) -> alegre(0.38) tosse(0.35) dorme(0.32) desce(0.30) come(0.30) sobe(0.28)
+  correm   (VI_p, 47x) -> sobem(0.70) comem(0.70) dormem(0.68) caem(0.65) sorriem(0.65) descem(0.65)
+  come     (VT_s, 710x) -> dorme(0.57) desce(0.43) tosse(0.32) vê(0.32) corre(0.30) valente(0.28)
+  brincar  (VINF, 222x) -> procurar(1.00) jogar(1.00) desenhar(1.00) contar(0.98) cozinhar(0.98) nadar(0.98)
+  na       (LOC_f_s, 1032x) -> gelatina(0.38) lanterna(0.35) menina(0.35) banana(0.35) joaninha(0.30) égua(0.28)
+  os       (DET_m_p, 4075x) -> dos(0.55) coelhos(0.22) vamos(0.22) burros(0.20) hipopótamos(0.20) gordos(0.20)
+  cozinha  (N_f_s, 88x) -> praia(0.80) piscina(0.80) casa(0.80) fazenda(0.77) rua(0.73) floresta(0.73)

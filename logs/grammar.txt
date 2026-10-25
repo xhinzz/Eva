@@ -1,0 +1,50 @@
+
+  [dia 10, semente 1] sujeitos retidos, com gramática:
+    o cachorro é gostoso              ok  [nunca ouviu]
+    os cachorros querem arrumar        ok  [nunca ouviu]
+    o macaco é limpo                  ok  [nunca ouviu]
+    os macacos querem desenhar         ok  [nunca ouviu]
+    o elefante é bonito               ok  [nunca ouviu]
+    os elefantes estão na casa        ok  [nunca ouviu]
+    o peixe é bagunçado              ok  [nunca ouviu]
+    os peixes estão no jardim         ok  [nunca ouviu]
+    o boi é branco                    ok  [nunca ouviu]
+    os bois estão no escorregador     ok  [nunca ouviu]
+  [dia 10, semente 1] sujeitos conhecidos, com gramática:
+    o gato está na varanda            ok  [nunca ouviu]
+    os gatos veem as cadeiras          ok  [nunca ouviu]
+    o cavalo é muito fria             erro de concordância
+    os cavalos são no sofá           agramatical
+    o porco come as canecas            ok (sentido estranho)  [nunca ouviu]
+    os porcos querem arrumar           ok
+    o pato gosta da vaca               ok  [nunca ouviu]
+    os patos são na escola            agramatical
+    o leão vê as tias são no banheiro agramatical
+    os leões veem as facas            ok  [nunca ouviu]
+  vizinhos de categoria (semente 1):
+    gato     -> pato(0.70) apito(0.62) biscoito(0.62) prato(0.60) rato(0.60) sapato(0.60)
+    girafa   -> bruxa(0.38) barata(0.35) tartaruga(0.35) princesa(0.35) raposa(0.35) toupeira(0.35)
+    bonito   -> amarelo(0.70) claro(0.70) bagunçado(0.55) lento(0.52) curto(0.52) roxo(0.50)
+    bonita   -> quieta(0.60) cheia(0.55) alta(0.40) dança(0.40) listrada(0.40) cansada(0.38)
+    corre    -> dorme(0.32) tosse(0.32) alegre(0.30) come(0.30) árvore(0.28) desce(0.25)
+    correm   -> sorriem(0.75) sobem(0.68) dormem(0.65) saem(0.57) descem(0.57) comem(0.57)
+    come     -> dorme(0.60) tosse(0.40) desce(0.35) late(0.32) corre(0.30) triste(0.28)
+    brincar  -> arrumar(0.93) contar(0.93) cozinhar(0.93) dançar(0.93) nadar(0.85) olhar(0.85)
+    na       -> anda(0.25) espirra(0.22) galinha(0.22) borboleta(0.22) pula(0.22) a(0.22)
+    os       -> dos(0.45) vamos(0.28) lindos(0.20) engraçados(0.20) magros(0.20) secos(0.20)
+  palavras faladas vindas da memória: 4669 | da gramática: 412 | chutes vetados: 62866
+
+10 dias x 2000 frases (20000 frases ouvidas), sono 300 episodios/noite, 2 sementes
+dia   | sujeitos RETIDOS: gramat. / concorda / sentido / nova | sujeitos conhecidos: gramat. / concorda / sentido | vizinho mesma classe (fina / classe)
+1     | com gram.:   2% /   2% /   2% /   2%      | com gram.:  56% /  54% /  51%            |  83% /  86%
+      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  73% /  70% /  68%
+2     | com gram.:  19% /  19% /  17% /  19%      | com gram.:  74% /  71% /  70%            |  87% /  90%
+      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  77% /  74% /  72%
+4     | com gram.:  45% /  44% /  44% /  44%      | com gram.:  73% /  71% /  69%            |  89% /  92%
+      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  64% /  62% /  61%
+8     | com gram.:  52% /  50% /  50% /  50%      | com gram.:  72% /  71% /  69%            |  92% /  94%
+      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  75% /  73% /  73%
+10    | com gram.:  59% /  56% /  56% /  56%      | com gram.:  79% /  76% /  73%            |  93% /  94%
+      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  68% /  65% /  64%
+sujeitos retidos que ela já tinha categorizado (ouviu 4+ vezes), com gramática:  dia 1: 1/7 frases certas (14%) | dia 2: 12/19 frases certas (63%) | dia 4: 28/42 frases certas (67%) | dia 8: 32/60 frases certas (53%) | dia 10: 36/61 frases certas (59%) |
+sinapses (média por cérebro): córtex de palavras 11.2 mi, de categorias 4.7 mi | memória 225 MB | treino 650.6 s por cérebro (31 frases/s)

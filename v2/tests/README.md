@@ -1,15 +1,28 @@
 # Medição da Eva 2
 
-    g++ -O2 -std=c++17 -Iv2 -Isrc v2/eva2.cpp v2/temporal_memory.cpp v2/vision.cpp v2/tests/bench.cpp -o bench2
-    ./bench2 2        # 20 frases, 2 exposições, 8 sementes
-    V=1 ./bench2 2    # mostra as completações da primeira semente
+Todos os testes compilam junto com o resto:
 
-    g++ -O2 -std=c++17 -Iv2 -Isrc v2/eva2.cpp v2/temporal_memory.cpp v2/vision.cpp v2/tests/ground.cpp -o ground
-    APONTA=1 ./ground 4 8       # 4 voltas apontando, 8 sementes: nomeia desenhos novos (72%), imagina (94%), entende (8/8)
-    APONTA=1 V=1 ./ground 4 1   # mostra o que ela diz e imagina na primeira semente; escreve ground_imagina.ppm
-    ./ground 4 8                # sem apontar: 21% / 40%
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build
 
-    g++ -O2 -std=c++17 -Iv2 v2/vision.cpp v2/tests/vision_test.cpp -o vision_test
-    ./vision_test               # só o córtex visual: erro de V1, erro de imaginação, imagens ve/v1/imagina/mistura.ppm
+| executável | o que mede | comando de exemplo |
+|---|---|---|
+| `eva2_bench` | frases longas: ensina 20 frases (2 vezes) e pede para completar a partir das 2 primeiras palavras | `./build/eva2_bench` (`V=1` mostra as completações) |
+| `eva2_ground` | sentido com olhos: nomear desenhos novos, imaginar pela palavra, entender "vamos para a praia" / "pega a flor" | `APONTA=1 ./build/eva2_ground 4 8` (voltas, sementes) |
+| `eva2_vision_test` | só o córtex visual: erro de V1, erro de imaginação, sobreposição de códigos; escreve `ve/v1/imagina/mistura.ppm` | `./build/eva2_vision_test` |
+| `eva2_categories_test` | só as categorias (segundos): o vizinho mais parecido de cada palavra é da mesma classe? | `V=1 ./build/eva2_categories_test 20000` |
+| `eva2_grammar` | gramática emergente: dias de fala de uma casa + sono; continua frases com sujeitos que nunca ouviu como sujeito | `V=1 ./build/eva2_grammar 10 2000 300 2` (dias, frases/dia, episódios de sono, sementes) |
 
-As imagens saem em PPM; para PNG: python3 -c "from PIL import Image; Image.open('x.ppm').save('x.png')"
+Variáveis de ambiente úteis no `eva2_grammar`: `CAT=0` (sem categorias: nem aprende),
+`FRESH=0/1` (contexto novo depois de surpresa no córtex de categorias), `MATCH`, `OVERRIDE`,
+`CCOLS`, `CACT`, `MORPH`, `CTXW`, `COLS`, `CELLS`, `CCELLS`. No `eva2_categories_test`: `FAN`,
+`ACT`, `CTXW`, `MORPH`, `MINC`. No `eva2_bench`: `CAT`, `MINC`, `DEC`, `INIT`.
+
+O corpus (`v2/corpus.hpp`) é uma gramática do português falado com criança: ~770 palavras,
+19 moldes de frase, concordância de gênero e número, restrições de sentido, frequência
+zipfiana. A mesma gramática gera o que ela ouve e verifica o que ela diz. Ela nunca vê a
+gramática, só as frases.
+
+As imagens saem em PPM; para PNG: `python3 -c "from PIL import Image; Image.open('x.ppm').save('x.png')"`.
+
+Os resultados de referência estão em `logs/` (com o comando que gerou cada um).
