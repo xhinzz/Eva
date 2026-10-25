@@ -1,26 +1,26 @@
 
   [dia 10, semente 1] sujeitos retidos, com gramática:
-    o cachorro é gostoso              ok  [nunca ouviu]
-    os cachorros querem arrumar        ok  [nunca ouviu]
-    o macaco é limpo                  ok  [nunca ouviu]
-    os macacos querem desenhar         ok  [nunca ouviu]
-    o elefante é bonito               ok  [nunca ouviu]
-    os elefantes estão na casa        ok  [nunca ouviu]
-    o peixe é bagunçado              ok  [nunca ouviu]
-    os peixes estão no jardim         ok  [nunca ouviu]
-    o boi é branco                    ok  [nunca ouviu]
-    os bois estão no escorregador     ok  [nunca ouviu]
+    o cachorro está no parque         ok  [nunca ouviu]
+    os cachorros são tristes estão no parque agramatical
+    o macaco está no escorregador     ok  [nunca ouviu]
+    os macacos dormem                  ok  [nunca ouviu]
+    o elefante                         agramatical
+    os elefantes são valentes         ok  [nunca ouviu]
+    o peixe é triste                  ok  [nunca ouviu]
+    os peixes estão no quarto         ok  [nunca ouviu]
+    o boi é magro                     ok  [nunca ouviu]
+    os bois são bonitos               ok  [nunca ouviu]
   [dia 10, semente 1] sujeitos conhecidos, com gramática:
-    o gato está na varanda            ok  [nunca ouviu]
-    os gatos veem as cadeiras          ok  [nunca ouviu]
-    o cavalo é muito fria             erro de concordância
-    os cavalos são no sofá           agramatical
-    o porco come as canecas            ok (sentido estranho)  [nunca ouviu]
-    os porcos querem arrumar           ok
-    o pato gosta da vaca               ok  [nunca ouviu]
-    os patos são na escola            agramatical
-    o leão vê as tias são no banheiro agramatical
-    os leões veem as facas            ok  [nunca ouviu]
+    o gato gosta da árvore            ok  [nunca ouviu]
+    os gatos veem as mexericas         ok
+    o cavalo gosta da árvore          ok  [nunca ouviu]
+    os cavalos gostam das araras       ok
+    o porco gosta da torta             ok  [nunca ouviu]
+    os porcos comem o abacaxi          ok  [nunca ouviu]
+    o pato é engraçado               ok  [nunca ouviu]
+    os patos estão no sofá           ok  [nunca ouviu]
+    o leão acorda                     ok
+    os leões estão na casa           ok  [nunca ouviu]
   vizinhos de categoria (semente 1):
     gato     -> pato(0.70) apito(0.62) biscoito(0.62) prato(0.60) rato(0.60) sapato(0.60)
     girafa   -> bruxa(0.38) barata(0.35) tartaruga(0.35) princesa(0.35) raposa(0.35) toupeira(0.35)
@@ -32,19 +32,19 @@
     brincar  -> arrumar(0.93) contar(0.93) cozinhar(0.93) dançar(0.93) nadar(0.85) olhar(0.85)
     na       -> anda(0.25) espirra(0.22) galinha(0.22) borboleta(0.22) pula(0.22) a(0.22)
     os       -> dos(0.45) vamos(0.28) lindos(0.20) engraçados(0.20) magros(0.20) secos(0.20)
-  palavras faladas vindas da memória: 4669 | da gramática: 412 | chutes vetados: 62866
+  palavras faladas vindas da memória: 4670 | da gramática: 428 | chutes vetados: 69215
 
 10 dias x 2000 frases (20000 frases ouvidas), sono 300 episodios/noite, 2 sementes
 dia   | sujeitos RETIDOS: gramat. / concorda / sentido / nova | sujeitos conhecidos: gramat. / concorda / sentido | vizinho mesma classe (fina / classe)
-1     | com gram.:   2% /   2% /   2% /   2%      | com gram.:  56% /  54% /  51%            |  83% /  86%
-      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  73% /  70% /  68%
-2     | com gram.:  19% /  19% /  17% /  19%      | com gram.:  74% /  71% /  70%            |  87% /  90%
-      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  77% /  74% /  72%
-4     | com gram.:  45% /  44% /  44% /  44%      | com gram.:  73% /  71% /  69%            |  89% /  92%
-      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  64% /  62% /  61%
-8     | com gram.:  52% /  50% /  50% /  50%      | com gram.:  72% /  71% /  69%            |  92% /  94%
-      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  75% /  73% /  73%
-10    | com gram.:  59% /  56% /  56% /  56%      | com gram.:  79% /  76% /  73%            |  93% /  94%
-      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  68% /  65% /  64%
-sujeitos retidos que ela já tinha categorizado (ouviu 4+ vezes), com gramática:  dia 1: 1/7 frases certas (14%) | dia 2: 12/19 frases certas (63%) | dia 4: 28/42 frases certas (67%) | dia 8: 32/60 frases certas (53%) | dia 10: 36/61 frases certas (59%) |
-sinapses (média por cérebro): córtex de palavras 11.2 mi, de categorias 4.7 mi | memória 225 MB | treino 650.6 s por cérebro (31 frases/s)
+1     | com gram.:   0% /   0% /   0% /   0%      | com gram.:  55% /  54% /  52%            |  83% /  86%
+      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  71% /  67% /  64%
+2     | com gram.:  16% /  12% /  12% /  12%      | com gram.:  66% /  62% /  60%            |  87% /  90%
+      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  68% /  64% /  63%
+4     | com gram.:  42% /  41% /  41% /  41%      | com gram.:  78% /  76% /  74%            |  89% /  92%
+      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  72% /  67% /  65%
+8     | com gram.:  78% /  75% /  75% /  75%      | com gram.:  84% /  82% /  79%            |  92% /  94%
+      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  69% /  67% /  66%
+10    | com gram.:  78% /  78% /  78% /  78%      | com gram.:  79% /  78% /  77%            |  93% /  94%
+      | sem gram.:   0% /   0% /   0% /   0%  (vazias 100%) | sem gram.:  72% /  67% /  67%
+sujeitos retidos que ela já tinha categorizado (ouviu 4+ vezes), com gramática:  dia 1: 0/7 frases certas (0%) | dia 2: 8/19 frases certas (42%) | dia 4: 26/42 frases certas (62%) | dia 8: 48/60 frases certas (80%) | dia 10: 50/61 frases certas (82%) |
+sinapses (média por cérebro): córtex de palavras 11.2 mi, de categorias 4.7 mi | memória 224 MB | treino 623.3 s por cérebro (32 frases/s)

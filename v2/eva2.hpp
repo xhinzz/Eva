@@ -14,6 +14,7 @@
 #include <random>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "../src/drives.hpp"
@@ -39,6 +40,15 @@ struct Eva2Config {
     TMConfig category_tm;
     float category_match = 0.6f;   // fração do código de categoria que precisa estar prevista
     float grammar_override = 1.5f; // a gramática passa por cima de um chute da memória se apoia outra espécie tanto mais
+    // Tema: do que se está falando. Pesa a escolha da palavra dentro da espécie.
+    bool topic_enabled = true;
+    float topic_gain = 8.0f;       // quanto o tema pesa na escolha
+    float topic_decay = 0.5f;      // a cada frase ouvida, o tema antigo cai para tanto
+    float topic_seen = 0.4f;       // o que ela vê entra no tema com este peso (o apontado, 1)
+    float topic_self = 0.1f;       // o que ela mesma disse
+    float topic_function_freq = 0.12f;  // palavras em mais frases que isto ("o", "é") não são tema
+    float topic_intent = 0.3f;     // tema acima disto é "o que ela quer dizer": entra se a gramática deixar
+    float topic_fit = 0.8f;        // ... e se a gramática, segura, prevê tanto do código de categoria dela
     int min_overlap = 16;        // colunas previstas que uma palavra precisa ter para ser "a próxima"
     int max_reply_words = 12;
     int max_actions_per_turn = 3;
@@ -152,11 +162,14 @@ public:
     const TemporalMemory& cortex() const { return tm_; }
     const TemporalMemory& category_cortex() const { return ctm_; }
     // estatística: de onde veio cada palavra gerada (memória de palavras x gramática)
-    struct GenStats { long long memory = 0, grammar = 0, vetoed = 0; };
+    struct GenStats { long long memory = 0, grammar = 0, vetoed = 0, topic = 0; };
     const GenStats& gen_stats() const { return gen_stats_; }
     // para medir: liga/desliga o uso da gramática na fala (o aprendizado continua)
     void set_grammar_in_speech(bool on) { grammar_in_speech_ = on; }
     void set_grammar_checks_memory(bool on) { grammar_checks_memory_ = on; }
+    void set_topic_in_speech(bool on) { topic_in_speech_ = on; }
+    // o tema agora: as palavras mais ativas, com o peso
+    std::vector<std::pair<std::string, float>> topic(size_t n = 6) const;
     const Drives& drives() const { return drives_; }
     float dopamine() const { return dopa_.level; }
     float mood() const { return dopa_.mood; }
@@ -193,6 +206,18 @@ private:
     GenStats gen_stats_;
     bool grammar_in_speech_ = true;
     bool grammar_checks_memory_ = false;  // testado: piora (veja README)
+    bool topic_in_speech_ = true;
+    // Tema ativo: atividade que decai sobre as palavras (o que ouviu, viu, disse).
+    // E o caminho até elas: quanto cada palavra costuma vir logo antes de outra
+    // (para querer dizer "gato" pré-ativar "o", não "a").
+    std::vector<float> topic_;
+    std::vector<std::unordered_map<int, float>> next_counts_;
+    std::vector<float> next_total_, prev_total_;
+    bool topic_said_ = false;  // nesta fala, ela já disse a palavra do assunto?
+    void add_topic(const std::string& w, float weight);
+    void decay_topic(float factor);
+    float topical(int k) const;
+    std::pair<std::string, float> visual_name(const VisualCode& c) const;
     void step_token(int id, bool learn, float dopamine);
     void reset_cortex();
     // As duas áreas trabalham ao mesmo tempo, como no cérebro: o córtex de

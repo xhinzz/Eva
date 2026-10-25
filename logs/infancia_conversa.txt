@@ -1,9 +1,9 @@
 (Eva nova, sem memoria)
 (infancia: ela vai ouvir 20000 frases da fala de uma casa, dormindo a cada 2000)
-        dia 1: ouviu 2000 frases (total 2000); surpresa média 0.43; 653 palavras, 330 com categoria; 6.3 mi de sinapses
-        dia 2: ouviu 2000 frases (total 4000); surpresa média 0.32; 735 palavras, 522 com categoria; 9.0 mi de sinapses
-        dia 3: ouviu 2000 frases (total 6000); surpresa média 0.30; 762 palavras, 616 com categoria; 10.7 mi de sinapses
-        dia 4: ouviu 2000 frases (total 8000); surpresa média 0.29; 770 palavras, 676 com categoria; 11.9 mi de sinapses
+        dia 1: ouviu 2000 frases (total 2000); surpresa média 0.43; 653 palavras, 330 com categoria; 6.2 mi de sinapses
+        dia 2: ouviu 2000 frases (total 4000); surpresa média 0.32; 735 palavras, 522 com categoria; 8.9 mi de sinapses
+        dia 3: ouviu 2000 frases (total 6000); surpresa média 0.30; 762 palavras, 616 com categoria; 10.6 mi de sinapses
+        dia 4: ouviu 2000 frases (total 8000); surpresa média 0.29; 770 palavras, 676 com categoria; 11.8 mi de sinapses
         dia 5: ouviu 2000 frases (total 10000); surpresa média 0.28; 772 palavras, 707 com categoria; 12.7 mi de sinapses
         dia 6: ouviu 2000 frases (total 12000); surpresa média 0.28; 772 palavras, 730 com categoria; 13.5 mi de sinapses
         dia 7: ouviu 2000 frases (total 14000); surpresa média 0.28; 772 palavras, 743 com categoria; 14.1 mi de sinapses
@@ -26,6 +26,7 @@ Como conversar com a Eva 2:
   /sentido palavra        o que a palavra evoca nela (percepcoes, com forca)
   /ouvir N                ela ouve N frases da fala de uma casa (e dorme a cada 2000)
   /categoria palavra      de que especie ela acha que a palavra e (as mais parecidas)
+  /tema                   do que ela acha que se esta falando agora
   /imaginar palavras...   a imagem que as palavras evocam nela (varias = mistura) -> imaginou.ppm
   /olhar                  o que os olhos dela veem agora e como ela lembra cada coisa -> olhar.ppm
   estado                  dopamina, humor, impulsos, estados, tamanho da memoria
@@ -37,21 +38,26 @@ em eva2_memoria.bin; o diario da conversa, em eva2_diario.txt.
 
 Voce:          'gato' (ouviu 220 vezes) e da especie de: rato(0.62) pato(0.60) lobo(0.57) tubarão(0.55) tio(0.52) golfinho(0.50) urso(0.50) amigo(0.50)
 Voce:          'bonita' (ouviu 8 vezes) e da especie de: velha(0.68) perfumada(0.60) roxa(0.57) listrada(0.43) cansada(0.38) brava(0.38) alegre(0.30) redonda(0.28)
-Voce:          'correm' (ouviu 19 vezes) e da especie de: gritam(0.62) sorriem(0.57) dormem(0.50) descem(0.50) caem(0.47) veem(0.47) comem(0.47) tossem(0.45)
-Voce:          'brincar' (ouviu 69 vezes) e da especie de: lavar(0.98) passear(0.98) nadar(0.95) cantar(0.95) contar(0.95) voltar(0.95) desenhar(0.95) olhar(0.95)
 Voce:          Eva: o cachorro ... está na praia
-Voce:          Eva: os macacos ... rolam os amigos comem as focas
-Voce:          Eva: a girafa ... gosta da borboleta
-Voce:          Eva: as vacas ... querem andar
-Voce:          Eva: eu gosto ... da irmã
-Voce:          Eva: vamos ... livros
+Voce:          Eva: a girafa ...
+Voce:          Eva: as vacas ... veem a bicicleta
 Voce:         (surpresa 0.50, dopamina 0.65)
-         Eva: o arroz está no chão   [eco <curiosa> <surpresa>]
-         Eva: (aponta para livro)   [aponta <curiosa>]
+         Eva: o gato é bonito   [resposta <curiosa> <surpresa>]
+         Eva: (aponta para cama)   [aponta <curiosa>]
+Voce:          assunto agora: gato(1.10) bonito(1.10)
 Voce:         (surpresa 0.31, dopamina 0.59)
-         Eva: o chocolate   [resposta]
+         Eva: a banana é brava   [resposta]
+Voce:          assunto agora: banana(1.10) come(1.00) vaca(1.00) bonito(0.95) gato(0.55) brava(0.10)
 Voce:         (surpresa 0.45, dopamina 0.64)
-         Eva: o travesseiro   [resposta <surpresa>]
-Voce:         dopamina 0.30 | humor 0.16 | vontade de falar 0.39 | curiosidade 0.22 | estados: (nenhum)
-        palavras 781 (768 com categoria) | segmentos 393557 | sinapses 11.15 mi (palavras) + 4.68 mi (categorias) | turnos 20009
+         Eva: é uma banana   [resposta <surpresa>]
+Voce:         (surpresa 0.32, dopamina 0.60)
+         Eva: o iogurte está no parque   [resposta]
+Voce:         (surpresa 0.45, dopamina 0.64)
+         Eva: as meninas querem brincar   [resposta <surpresa>]
+Voce:         (surpresa 0.42, dopamina 0.63)
+         Eva: é um leão   [resposta <feliz> <surpresa>]
+         Eva pegou pao   [{pegar:pao}]
+         Eva comeu pao   [{comer}, recompensa]
+Voce:         dopamina 0.30 | humor 0.47 | vontade de falar 0.52 | curiosidade 0.22 | estados: <feliz>
+        palavras 786 (768 com categoria) | segmentos 394499 | sinapses 11.18 mi (palavras) + 4.69 mi (categorias) | turnos 20020
 Voce:         (memoria salva)

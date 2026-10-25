@@ -1,0 +1,64 @@
+  infância: 2000 frases
+  infância: 4000 frases
+  infância: 6000 frases
+  infância: 8000 frases
+  infância: 10000 frases
+
+=== tema LIGADO ===
+Voce: os porcos tossem                   Eva: os porcos tossem a torta               [no assunto] [fora da gramática]
+Voce: o irmão é pintado                Eva: é um irmão é pintado                [no assunto] [fora da gramática]
+Voce: os amigos gostam dos peixes        Eva: os amigos gostam dos pães             [no assunto] [gramatical]
+Voce: os bebês estão na piscina        Eva: os peixes gostam da formiga            [outro assunto] [gramatical]
+Voce: o porco come a pera                Eva: a pera                                 [no assunto] [fora da gramática]
+Voce: a fruta está no tapete            Eva: a pera é muito sozinha                [outro assunto] [gramatical]
+Voce: os pães são muito amarelos       Eva: os pães são muito quentinha          [no assunto] [erro de concordância]
+Voce: o burro é frio                    Eva: o burro é muito                       [no assunto] [fora da gramática]
+Voce: as borboletas voltam               Eva: as borboletas voltam                   [no assunto] [gramatical] [eco]
+Voce: a mamãe come o feijão            Eva: a mamãe come o feijão                [no assunto] [gramatical] [eco]
+Voce: os morangos são roxos             Eva: os morangos são muito quentinhos      [no assunto] [gramatical]
+Voce: os pinguins nadam                  Eva: os morangos são muito quentinhos      [outro assunto] [gramatical]
+Voce: o porco está na sala              Eva: o porco come a pera é muito sozinha   [no assunto] [fora da gramática] [eco]
+Voce: as moças espirram                 Eva: o porco come a torta é muito quentinha [outro assunto] [fora da gramática]
+Voce: a mamãe come a pera               Eva: as moças espirram                     [outro assunto] [gramatical]
+Voce: a galinha é assustada             Eva: é um iogurte                          [outro assunto] [gramatical]
+Voce: os morangos estão no tapete       Eva: os morangos estão no sofá            [no assunto] [gramatical]
+Voce: o elefante é arrumado             Eva: o porco está na varanda               [outro assunto] [gramatical]
+Voce: o bebê come a cenoura             Eva: a cenoura é muito sozinha             [no assunto] [gramatical]
+Voce: a salada é magra                  Eva: o burro come a torta é muito sozinha  [outro assunto] [fora da gramática]
+Voce: os porcos listrados estão no sofá Eva: é um iogurte                          [outro assunto] [gramatical]
+Voce: a amiga é amarela                 Eva: os porcos tossem a gelatina é muito sozinha [outro assunto] [fora da gramática]
+Voce: as meias são listradas            Eva: as meias são listradas                [no assunto] [gramatical] [eco]
+Voce: o moço chega                      Eva: o canguru gosta das coxinhas           [outro assunto] [gramatical]
+Voce: os hipopótamos querem nadar       Eva: vamos nadar                            [outro assunto] [gramatical]
+
+=== tema DESLIGADO ===
+Voce: os porcos tossem                   Eva: as pipocas                             [outro assunto] [fora da gramática]
+Voce: o irmão é pintado                Eva: as coxinhas são muito quentinhas      [outro assunto] [gramatical]
+Voce: os amigos gostam dos peixes        Eva: o iogurte é veloz                     [outro assunto] [gramatical]
+Voce: os bebês estão na piscina        Eva: cadê as irmãs                        [outro assunto] [gramatical]
+Voce: o porco come a pera                Eva: cadê as coxinhas são muito quentinhas [outro assunto] [fora da gramática]
+Voce: a fruta está no tapete            Eva: a torta é quentinha                   [outro assunto] [gramatical] [eco]
+Voce: os pães são muito amarelos       Eva: a batata é quentinha                  [outro assunto] [gramatical]
+Voce: o burro é frio                    Eva: o iogurte é veloz                     [outro assunto] [gramatical] [eco]
+Voce: as borboletas voltam               Eva: o zoológico é muito escondido        [outro assunto] [gramatical]
+Voce: a mamãe come o feijão            Eva: feijão é muito vazio                 [no assunto] [fora da gramática]
+Voce: os morangos são roxos             Eva: o zoológico é muito vazio            [outro assunto] [gramatical]
+Voce: os pinguins nadam                  Eva: os travesseiros vazios                 [outro assunto] [fora da gramática] [eco]
+Voce: o porco está na sala              Eva: a batata é quentinha                  [outro assunto] [gramatical]
+Voce: as moças espirram                 Eva: o zoológico é muito escondido        [outro assunto] [gramatical]
+Voce: a mamãe come a pera               Eva: as baratas são muito quentinhas       [outro assunto] [gramatical]
+Voce: a galinha é assustada             Eva: é um canguru                          [outro assunto] [gramatical]
+Voce: os morangos estão no tapete       Eva: os pinguins querem cantar              [outro assunto] [gramatical] [eco]
+Voce: o elefante é arrumado             Eva: a batata é quentinha                  [outro assunto] [gramatical]
+Voce: o bebê come a cenoura             Eva: o zoológico é muito escondido        [outro assunto] [gramatical]
+Voce: a salada é magra                  Eva: é um canguru                          [outro assunto] [gramatical]
+Voce: os porcos listrados estão no sofá Eva: os travesseiros vazios                 [outro assunto] [fora da gramática] [eco]
+Voce: a amiga é amarela                 Eva: a batata é quentinha                  [outro assunto] [gramatical]
+Voce: as meias são listradas            Eva: o zoológico é muito escondido        [outro assunto] [gramatical]
+Voce: o moço chega                      Eva: o zoológico é muito escondido        [outro assunto] [gramatical]
+Voce: os hipopótamos querem nadar       Eva: os travesseiros                        [outro assunto] [fora da gramática] [eco]
+
+infância de 10000 frases; 300 frases suas (novas para ela), imitação desligada
+                   | respondeu | no assunto (seu substantivo) | gramatical  | no assunto E gramatical    | eco
+tema ligado        |      100% |                        62% |         72% |                        46% |  11%
+tema desligado     |      100% |                         7% |         45% |                         1% |  44%

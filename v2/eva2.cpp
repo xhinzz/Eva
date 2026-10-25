@@ -9,7 +9,7 @@
 
 namespace eva2 {
 
-static constexpr char kMemoryMagic[8] = {'E', 'V', 'A', '2', 'm', 'e', 'm', '4'};
+static constexpr char kMemoryMagic[8] = {'E', 'V', 'A', '2', 'm', 'e', 'm', '5'};
 
 std::string Utterance::text() const {
     std::string s;
@@ -28,6 +28,10 @@ Eva2::Eva2(Eva2Config cfg, unsigned seed)
     vocab_.word_active = cfg_.sdr_active;
     vocab_.category_columns = cfg_.categories.columns;
     for (const char* k : {kYou, kMe, kEnd, kHappy, kCurious, kSurprised, kWorld}) vocab_.add(k, rng_);
+    // Para a área de categorias, o começo da fala dela e o da sua são a mesma
+    // coisa: "começo de frase". Assim a gramática que ela aprendeu ouvindo vale
+    // também quando ela fala.
+    vocab_.set_category(vocab_.id(kMe), vocab_.category_code(vocab_.id(kYou)));
     drives_.talk = 0.4f;  // ela chega com alguma vontade de conversar
 
     // Infância dos olhos: V1 amadurece vendo as coisas do mundo (sem nomes), e
@@ -105,8 +109,15 @@ Eva2::~Eva2() {
 }
 
 void Eva2::step_token(int id, bool learn, float dopamine) {
-    if (!cfg_.categories_enabled) { tm_.step(vocab_.codes[id], learn, dopamine); return; }
+    // A área de categorias só recebe língua: palavras, começo e fim de fala.
+    // Estados (<feliz>), percepções ([ve:...]) e ações ({...}) não são sintaxe.
+    const std::string& tok = vocab_.words[id];
+    const bool language = !Vocabulary::internal(tok) || tok == kYou || tok == kMe || tok == kEnd;
+    if (!cfg_.categories_enabled || !language) { tm_.step(vocab_.codes[id], learn, dopamine); return; }
     if (!area2_.joinable()) area2_ = std::thread(&Eva2::area2_loop, this);
+    // Para a área de categorias, cada fala é uma frase nova (a sintaxe vive dentro
+    // da frase): no começo de um turno, seu ou dela, ela recomeça, como ao ouvir.
+    if (tok == kYou || tok == kMe) ctm_.reset();
     {
         std::lock_guard<std::mutex> lk(area2_m_);
         area2_cols_ = vocab_.category_code(id);
@@ -200,6 +211,15 @@ Heard Eva2::hear(const std::vector<std::string>& words, float reward) {
     }
     feed_tokens(tokens, true, dopa_.level);
     observe_categories(words);
+    // tema: o assunto antigo esmaece; o que você disse vira o assunto, e o que ela
+    // vê também entra (o que você apontou, com força total)
+    decay_topic(cfg_.topic_decay);
+    for (const auto& w : words) add_topic(w, 1.0f);
+    if (cfg_.world_enabled)
+        for (const auto& [name, code] : seen_now_) {
+            auto [w, sc] = visual_name(code);
+            if (!w.empty() && sc >= cfg_.meaning_threshold) add_topic(w, name == attended_ ? 1.0f : cfg_.topic_seen);
+        }
     // sentido: o que ela vê agora fica ligado ao que ouve agora, em qualquer ordem.
     // Antes de ligar, imagina: o que essas palavras já evocavam (é isso que guia a ação)
     if (cfg_.world_enabled) {
@@ -209,7 +229,6 @@ Heard Eva2::hear(const std::vector<std::string>& words, float reward) {
             for (const auto& pr : meaning_.perceptions_for(w, cfg_.meaning_threshold, cfg_.meaning_min_evidence))
                 imagined_.push_back(pr);
         }
-        meaning_.note_turn(words);
         last_perception_ = world_.perceive();
         std::vector<std::pair<std::string, float>> moment;
         for (const auto& p : last_perception_)
@@ -254,9 +273,16 @@ float Eva2::listen(const std::vector<std::string>& words, float dopamine) {
 // (como a criança que de repente usa a palavra nova em outras frases); as
 // revisões ficam para o sono.
 void Eva2::observe_categories(const std::vector<std::string>& words) {
-    if (!cfg_.categories_enabled || words.empty()) return;
+    if (words.empty()) return;
+    meaning_.note_turn(words);  // em quantas frases cada palavra aparece (palavras de função x de conteúdo)
     std::vector<int> ids;
     for (const auto& w : words) ids.push_back(vocab_.add(w, rng_));
+    // caminhos: quem vem logo antes de quem
+    if (next_counts_.size() < vocab_.words.size()) {
+        next_counts_.resize(vocab_.words.size()); next_total_.resize(vocab_.words.size(), 0.0f); prev_total_.resize(vocab_.words.size(), 0.0f);
+    }
+    for (size_t i = 0; i + 1 < ids.size(); ++i) { next_counts_[ids[i]][ids[i + 1]] += 1.0f; next_total_[ids[i]] += 1.0f; prev_total_[ids[i + 1]] += 1.0f; }
+    if (!cfg_.categories_enabled) return;
     cats_.observe(ids, words);
     for (int id : ids)
         if (!cats_.has_code(id) && cats_.count(id) >= cfg_.categories.min_count) {
@@ -299,13 +325,21 @@ int Eva2::predict_next(std::vector<int>* overlaps_out) {
         }
         return cands;
     };
+    const bool use_topic = cfg_.topic_enabled && topic_in_speech_ && !topic_.empty();
     auto choose = [&](std::vector<std::pair<int, int>>& cands) {
         std::sort(cands.rbegin(), cands.rend());
         // explora entre os quase-empatados conforme a curiosidade
         const int top = cands.front().first;
-        const int slack = static_cast<int>(std::round(6.0f * state_level(kCurious)));
+        int slack = static_cast<int>(std::round(6.0f * state_level(kCurious)));
+        if (use_topic) slack = std::max(slack, 4);  // entre lembranças quase iguais, o assunto decide
         std::vector<int> pool;
         for (auto& [ov, id] : cands) if (ov >= top - slack) pool.push_back(id);
+        if (use_topic && pool.size() > 1) {
+            std::vector<double> w;
+            for (int id : pool) w.push_back(1.0 + cfg_.topic_gain * topical(id));
+            std::discrete_distribution<size_t> pick(w.begin(), w.end());
+            return pool[pick(rng_)];
+        }
         std::uniform_int_distribution<size_t> pick(0, pool.size() - 1);
         return pool[pick(rng_)];
     };
@@ -353,6 +387,65 @@ int Eva2::predict_next(std::vector<int>* overlaps_out) {
         gen_stats_.vetoed += static_cast<long long>(sure.size() - ok.size());
         sure = ok;
     }
+    // 0. Intenção: a palavra do assunto ainda não dita, ou o caminho até ela
+    //    ("as" antes de "moças"), entra se a gramática está segura de que essa
+    //    espécie de palavra cabe aqui. Querer falar do porco vence a lembrança
+    //    de "os doces". Uma vez dita a palavra do assunto, o resto da frase segue
+    //    a memória e a gramática (senão ela só repetiria você).
+    if (dbg && use_topic) {
+        std::fprintf(stderr, "    tema:");
+        for (auto& [w, t] : topic(5)) std::fprintf(stderr, " %s(%.2f)", w.c_str(), t);
+        std::fprintf(stderr, " | ja disse o assunto: %d | gramatica segura: %zu colunas\n", topic_said_, csure.size());
+    }
+    const auto call = ctm_.predicted_columns(false);
+    if (use_topic && !topic_said_ && !call.empty()) {
+        // a gramática inteira (não só a "segura"): no começo da fala, a parte segura
+        // é só o hábito dela ("os ..."), e o hábito não pode calar o assunto
+        auto sure_fit = [&](size_t k) {
+            const auto code = vocab_.category_code(static_cast<int>(k));
+            return Vocabulary::overlap_sorted(code, call) / static_cast<double>(std::max<size_t>(1, code.size()));
+        };
+        std::vector<int> ids;
+        std::vector<double> w, sup;
+        double best_sup = 0.0;
+        for (size_t k = 0; k < vocab_.words.size(); ++k) {
+            if (!sayable(k) || said_recently(k)) continue;
+            const float t = topical(static_cast<int>(k));
+            if (t < cfg_.topic_intent || sure_fit(k) < cfg_.topic_fit) continue;
+            const double sp = support(k);
+            ids.push_back(static_cast<int>(k));
+            w.push_back(t * sp);
+            sup.push_back(sp);
+            best_sup = std::max(best_sup, sp);
+        }
+        // só o que a gramática apoia com força: metade do apoio da espécie mais
+        // apoiada aqui, entre TODAS as palavras (não só as do assunto). Depois de
+        // "os", substantivos têm apoio enorme; um verbo que entrou na previsão
+        // por acaso, não.
+        if (!ids.empty())
+            for (size_t k = 0; k < vocab_.words.size(); ++k)
+                if (sayable(k) && sure_fit(k) >= cfg_.topic_fit) best_sup = std::max(best_sup, support(k));
+        for (size_t i = 0; i < ids.size(); ++i) if (sup[i] < 0.5 * best_sup) w[i] = 0.0;
+        if (dbg) {
+            std::fprintf(stderr, "    intencao:");
+            for (size_t i = 0; i < ids.size(); ++i) {
+                std::fprintf(stderr, " %s(t=%.2f,apoio=%.2f%s; via", vocab_.words[ids[i]].c_str(), topical(ids[i]), sup[i], w[i] > 0 ? "" : ",fraco");
+                if (ids[i] < static_cast<int>(next_counts_.size()))
+                    for (const auto& [t, c] : next_counts_[ids[i]])
+                        if (t < static_cast<int>(topic_.size()) && topic_[t] > 0.01f && prev_total_[t] > 0.0f)
+                            std::fprintf(stderr, " %s:%.0f/%.0f", vocab_.words[t].c_str(), c, prev_total_[t]);
+                std::fprintf(stderr, ")");
+            }
+            std::fprintf(stderr, "\n");
+        }
+        double total = 0.0;
+        for (double x : w) total += x;
+        if (total > 0.0) {
+            std::discrete_distribution<size_t> pick(w.begin(), w.end());
+            ++gen_stats_.topic;
+            return ids[pick(rng_)];
+        }
+    }
     if (!sure.empty()) { ++gen_stats_.memory; return choose(sure); }
 
     // 2. A memória só tem chutes (a união de tudo que já veio depois da última
@@ -398,7 +491,9 @@ int Eva2::predict_next(std::vector<int>* overlaps_out) {
         const double f = fit(k);
         if (f < cfg_.category_match) continue;
         ids.push_back(static_cast<int>(k));
-        weight.push_back(std::pow(f, 4.0) * std::pow(support(k), 2.0) * std::sqrt(1.0 + cats_.count(static_cast<int>(k))));
+        double wk = std::pow(f, 4.0) * std::pow(support(k), 2.0) * std::sqrt(1.0 + cats_.count(static_cast<int>(k)));
+        if (use_topic) wk *= 1.0 + cfg_.topic_gain * topical(static_cast<int>(k));  // o assunto escolhe dentro da espécie
+        weight.push_back(wk);
     }
     if (ids.empty()) return -1;
     std::discrete_distribution<size_t> pick(weight.begin(), weight.end());
@@ -409,6 +504,7 @@ int Eva2::predict_next(std::vector<int>* overlaps_out) {
 std::vector<std::string> Eva2::generate(int max_words, bool learn) {
     std::vector<std::string> out;
     recent_said_.clear();
+    topic_said_ = false;
     int last_id = -1;
     bool burst_used = false;
     for (int i = 0; i < max_words; ++i) {
@@ -427,7 +523,10 @@ std::vector<std::string> Eva2::generate(int max_words, bool learn) {
         const std::string& w = vocab_.words[id];
         if (w == kEnd) break;
         if (World::is_action(w)) { pending_action_ = w; break; }  // o corpo responde, não a boca
-        if (!is_internal(w)) { out.push_back(w); recent_said_.push_back(w); burst_used = false; }
+        if (!is_internal(w)) {
+            out.push_back(w); recent_said_.push_back(w); burst_used = false;
+            if (id < static_cast<int>(topic_.size()) && topic_[id] >= cfg_.topic_intent) topic_said_ = true;
+        }
         step_token(id, learn, cfg_.self_learning * dopa_.level);
         last_id = id;
     }
@@ -506,6 +605,7 @@ std::vector<Utterance> Eva2::respond() {
     if (recent_replies_.size() > 3) recent_replies_.erase(recent_replies_.begin());
     out.push_back({kind, words, states, 0.0f});
     drives_.on_spoke();
+    for (const auto& w : words) add_topic(w, cfg_.topic_self);
     diary("eva", words, kind == Utterance::Kind::Echo ? "eco" : "resposta");
     return out;
 }
@@ -672,6 +772,69 @@ bool Eva2::give(const std::string& object, std::string* result) {
 // do quanto cada uma evoca a palavra); o resto da frase vem do córtex de
 // sequências, a partir dela. Uma imagem nunca vista é nomeada pelo que ela
 // compartilha com imagens vistas: é generalização de verdade.
+// ---------------------------------------------------------------- tema
+
+void Eva2::add_topic(const std::string& w, float weight) {
+    if (!cfg_.topic_enabled || Vocabulary::internal(w)) return;
+    if (meaning_.frequency(w) > cfg_.topic_function_freq) return;  // "o", "é", "de": não são assunto
+    const int id = vocab_.add(w, rng_);
+    if (topic_.size() < vocab_.words.size()) topic_.resize(vocab_.words.size(), 0.0f);
+    topic_[id] = std::min(1.5f, topic_[id] + weight);
+}
+
+void Eva2::decay_topic(float factor) {
+    for (float& t : topic_) t *= factor;
+}
+
+// Quanto dizer a palavra k serve ao tema: ela mesma é tema, ou é o caminho
+// usual até uma palavra do tema (de tudo que vem antes de "porcos", quanto é
+// "os"?). Querer dizer "porcos" puxa "os", não "o"; querer dizer "praia" puxa
+// "na". É a intenção chegando um passo antes da palavra.
+float Eva2::topical(int k) const {
+    if (topic_.empty()) return 0.0f;
+    float s = (k < static_cast<int>(topic_.size()) && !topic_said_) ? topic_[k] : 0.0f;
+    if (!topic_said_ && k < static_cast<int>(next_counts_.size())) {
+        // o caminho mais forte até uma palavra que ela quer dizer (não a soma de
+        // muitos caminhos fracos: querer dizer muitas coisas de leve não é querer dizer nada)
+        float ahead = 0.0f;
+        for (const auto& [t, c] : next_counts_[k])
+            if (t < static_cast<int>(topic_.size()) && topic_[t] >= cfg_.topic_intent && prev_total_[t] > 0.0f)
+                ahead = std::max(ahead, topic_[t] * c / prev_total_[t]);
+        s += ahead;
+    }
+    return s;
+}
+
+std::vector<std::pair<std::string, float>> Eva2::topic(size_t n) const {
+    std::vector<std::pair<std::string, float>> out;
+    for (size_t k = 0; k < topic_.size(); ++k) if (topic_[k] > 0.05f) out.push_back({vocab_.words[k], topic_[k]});
+    std::sort(out.begin(), out.end(), [](auto& a, auto& b) { return a.second > b.second; });
+    if (out.size() > n) out.resize(n);
+    return out;
+}
+
+// O nome que um código visual evoca (cosseno entre o código visto e o que cada
+// palavra evoca), com a força
+std::pair<std::string, float> Eva2::visual_name(const VisualCode& c) const {
+    std::map<std::string, float> dot;
+    float norm_code = 0.0f;
+    for (const auto& [tok, act] : visual_tokens(c)) {
+        norm_code += act * act;
+        for (const auto& [w, st] : meaning_.words_for(tok, 0.0f)) {
+            if (meaning_.frequency(w) > cfg_.function_word_freq) continue;
+            dot[w] += act * st;
+        }
+    }
+    std::string name; float best = 0.0f;
+    for (const auto& [w, d] : dot) {
+        float norm_w = 0.0f;
+        for (const auto& [p, st] : meaning_.perceptions_for(w, 0.0f)) norm_w += st * st;
+        const float sc = d / (std::sqrt(norm_code * norm_w) + 1e-6f);
+        if (sc > best) { best = sc; name = w; }
+    }
+    return {name, best};
+}
+
 std::vector<std::string> Eva2::name_image(const Image& img) {
     VisualCode c = vision_.see(img, false);
     // cosseno entre o código visto (ativação por unidade) e o que cada palavra
@@ -870,6 +1033,21 @@ bool Eva2::save() const {
     out.write(reinterpret_cast<const char*>(&drives_.curiosity), sizeof drives_.curiosity);
     meaning_.save(out);
     cats_.save(out);
+    {   // caminhos entre palavras (quem vem antes de quem): servem ao tema
+        const uint32_t n = static_cast<uint32_t>(next_counts_.size());
+        out.write(reinterpret_cast<const char*>(&n), sizeof n);
+        for (uint32_t k = 0; k < n; ++k) {
+            out.write(reinterpret_cast<const char*>(&next_total_[k]), sizeof(float));
+            out.write(reinterpret_cast<const char*>(&prev_total_[k]), sizeof(float));
+            const uint32_t m = static_cast<uint32_t>(next_counts_[k].size());
+            out.write(reinterpret_cast<const char*>(&m), sizeof m);
+            for (const auto& [t, c] : next_counts_[k]) {
+                const int32_t ti = t;
+                out.write(reinterpret_cast<const char*>(&ti), sizeof ti);
+                out.write(reinterpret_cast<const char*>(&c), sizeof c);
+            }
+        }
+    }
     vision_.save(out);
     const uint32_t nu = static_cast<uint32_t>(unit_columns_.size());
     out.write(reinterpret_cast<const char*>(&nu), sizeof nu);
@@ -938,6 +1116,24 @@ bool Eva2::load() {
     in.read(reinterpret_cast<char*>(&drives_.curiosity), sizeof drives_.curiosity);
     meaning_.load(in);
     cats_.load(in);
+    {
+        uint32_t n = 0;
+        in.read(reinterpret_cast<char*>(&n), sizeof n);
+        if (n > 10000000) return false;
+        next_counts_.assign(n, {}); next_total_.assign(n, 0.0f); prev_total_.assign(n, 0.0f);
+        for (uint32_t k = 0; k < n; ++k) {
+            in.read(reinterpret_cast<char*>(&next_total_[k]), sizeof(float));
+            in.read(reinterpret_cast<char*>(&prev_total_[k]), sizeof(float));
+            uint32_t m = 0;
+            in.read(reinterpret_cast<char*>(&m), sizeof m);
+            for (uint32_t i = 0; i < m && in; ++i) {
+                int32_t t; float c;
+                in.read(reinterpret_cast<char*>(&t), sizeof t);
+                in.read(reinterpret_cast<char*>(&c), sizeof c);
+                next_counts_[k][t] = c;
+            }
+        }
+    }
     vision_.load(in);
     uint32_t nu = 0;
     in.read(reinterpret_cast<char*>(&nu), sizeof nu);

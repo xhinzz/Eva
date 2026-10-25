@@ -171,6 +171,7 @@ static void help() {
         "  /sentido palavra        o que a palavra evoca nela (percepcoes, com forca)\n"
         "  /ouvir N                ela ouve N frases da fala de uma casa (e dorme a cada 2000)\n"
         "  /categoria palavra      de que especie ela acha que a palavra e (as mais parecidas)\n"
+        "  /tema                   do que ela acha que se esta falando agora\n"
         "  /imaginar palavras...   a imagem que as palavras evocam nela (varias = mistura) -> imaginou.ppm\n"
         "  /olhar                  o que os olhos dela veem agora e como ela lembra cada coisa -> olhar.ppm\n"
         "  estado                  dopamina, humor, impulsos, estados, tamanho da memoria\n"
@@ -304,6 +305,14 @@ static void converse(bool fresh, bool big, int childhood) {
         }
         if (w[0] == "/ouvir") { grow(e, w.size() > 1 ? std::atoi(w[1].c_str()) : 2000, 7); continue; }
         if (w[0] == "/categoria" && w.size() > 1) { show_category(e, w[1]); continue; }
+        if (w[0] == "/tema") {
+            std::printf("         assunto agora:");
+            auto t = e.topic(8);
+            if (t.empty()) std::printf(" (nenhum)");
+            for (auto& [word, v] : t) std::printf(" %s(%.2f)", word.c_str(), v);
+            std::printf("\n");
+            continue;
+        }
         if (w[0] == "estado") {
             std::printf("        dopamina %.2f | humor %.2f | vontade de falar %.2f | curiosidade %.2f | estados:",
                         e.dopamine(), e.mood(), e.drives().talk, e.drives().curiosity);

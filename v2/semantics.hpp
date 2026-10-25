@@ -114,6 +114,12 @@ public:
         }
         write_counts(out, count_p_);
         write_counts(out, count_w_);
+        // em quantas frases cada palavra apareceu (o que separa "o" de "porco")
+        std::map<std::string, float> tw;
+        for (const auto& [w, n] : turns_with_) tw[w] = static_cast<float>(n);
+        write_counts(out, tw);
+        const int32_t t = turns_;
+        out.write(reinterpret_cast<const char*>(&t), sizeof t);
     }
     template <class In> bool load(In& in) {
         uint32_t n = 0;
@@ -132,6 +138,13 @@ public:
         }
         read_counts(in, count_p_);
         read_counts(in, count_w_);
+        std::map<std::string, float> tw;
+        read_counts(in, tw);
+        turns_with_.clear();
+        for (const auto& [w, n] : tw) turns_with_[w] = static_cast<int>(n);
+        int32_t t = 0;
+        in.read(reinterpret_cast<char*>(&t), sizeof t);
+        turns_ = t;
         return static_cast<bool>(in);
     }
 
