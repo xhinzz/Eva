@@ -4,7 +4,7 @@ Um cérebro simulado em C++, inspirado na biologia, feito para conversar de verd
 
 Há duas Evas neste repositório:
 
-- **Eva 2** (`v2/`, executável `eva2`): um **córtex de colunas** (memória temporal hebbiana, no modelo de Hawkins/Numenta) ligado a um **mundo** onde ela percebe e age, com **olhos** (um córtex visual hebbiano que vê, lembra e imagina imagens) e **gramática que emerge** (ela descobre sozinha as espécies de palavras ouvindo 20 mil frases de uma casa, e diz frases certas que nunca ouviu), e um **tema** (ela responde sobre o assunto da sua frase). Frases longas, contexto longo, memória que persiste em disco entre conversas, e **sentido**: palavras ancoradas no que ela vê, faz e sente. É a que conversa.
+- **Eva 2** (`v2/`, executável `eva2`): um **córtex de colunas** (memória temporal hebbiana, no modelo de Hawkins/Numenta) ligado a um **mundo** onde ela percebe e age, com **olhos** (um córtex visual hebbiano que vê, lembra e imagina imagens) e **gramática que emerge** (ela descobre sozinha as espécies de palavras ouvindo 20 mil frases de uma casa, e diz frases certas que nunca ouviu), um **tema** (ela responde sobre o assunto da sua frase), **memória de episódios** e **papéis** (entende quem fez o quê pela ordem das palavras, responde "cadê / o que / quem" pelo que lembra, e fala sozinha do que viu). Frases longas, contexto longo, memória que persiste em disco entre conversas, e **sentido**: palavras ancoradas no que ela vê, faz e sente. É a que conversa.
 - **Eva 1** (`src/`, executável `eva`): neurônios de pulsos ms a ms, hipocampo, sono, dopamina. É onde tudo começou, e onde ficaram os experimentos e as medições que levaram à Eva 2. Está documentada mais abaixo.
 
 ## Eva 2 em uma página
@@ -265,7 +265,71 @@ Voce: o leão é grande                     Eva: é um leão
 
 `/tema` mostra do que ela acha que se está falando (`assunto agora: banana(1.10) come(1.00) vaca(1.00) ...`).
 
-**O que isto é e o que não é.** É o começo de "falar sobre": ela pega o assunto da sua frase e diz algo dela sobre ele, com a gramática que aprendeu, em quase metade das vezes, contra 1% sem o tema. Não é ainda **responder**: ela não entende pergunta ("cadê o gato?" não é diferente de "o gato"), não sabe quem faz o quê na sua frase, e às vezes fala do assunto anterior ou emenda frases. O que ela diz sobre o assunto ainda é o que *cabe* (gramática + lembrança), não o que é *verdade* no mundo dela. Os próximos passos são esses: quem faz o quê (ligar a ordem das palavras ao que ela vê acontecer), perguntas e respostas, e memória de episódios.
+**O que isto é e o que não é.** É o começo de "falar sobre": ela pega o assunto da sua frase e diz algo dela sobre ele, com a gramática que aprendeu, em quase metade das vezes, contra 1% sem o tema. Não é ainda **responder**: ela não entende pergunta ("cadê o gato?" não é diferente de "o gato"), não sabe quem faz o quê na sua frase, e às vezes fala do assunto anterior ou emenda frases. O que ela diz sobre o assunto ainda é o que *cabe* (gramática + lembrança), não o que é *verdade* no mundo dela. Os próximos passos eram esses: quem faz o quê, perguntas e respostas, e memória de episódios. Estão na seção seguinte.
+
+## Quem faz o quê, perguntas e lembranças
+
+Até aqui a Eva falava *sobre* coisas, mas não sabia o que tinha acontecido, nem quem tinha feito o quê, nem o que uma pergunta pede. Agora a infância dela tem **cenas**: coisas que acontecem na casa e que ela vê (o gato comendo o peixe na cozinha), enquanto alguém descreve ("o gato come o peixe"). Às vezes alguém pergunta sobre a cena e responde por ela, como os pais fazem ("cadê o gato? ... o gato está na sala!"). O resto é fala comum da casa.
+
+Três peças novas (`v2/episodes.hpp`, e o resto em `v2/eva2.cpp`):
+
+1. **Memória de episódios** (o hipocampo, aqui abstrato): cada cena vivida vira um episódio: quem, o quê, com o quê, onde, e o quanto importou. Uma pista parcial ("o gato", "come") traz de volta o episódio mais recente que combina. Na Eva 1 o hipocampo era de pulsos; aqui é um índice de episódios, porque o que importa agora é o que ela faz com a lembrança.
+2. **Papéis pela ordem das palavras.** Ela *vê* quem age e quem sofre a ação e *ouve* a frase. Contando em que posição da frase (entre as palavras que têm sentido para ela) aparece cada papel, cena após cena, ela aprende a ordem do português: quem faz vem primeiro, depois a ação, depois o alvo ou o lugar. Ninguém ensina a regra. Bebês de 2 anos já fazem isso (Hirsh-Pasek e Golinkoff, olhar preferencial).
+3. **O que cada palavra de pergunta pede.** Quando alguém pergunta e responde, ela liga cada palavra da pergunta sem sentido próprio ao que a resposta trouxe de novo: "cadê" passou a pedir um lugar, "que" um alvo, "quem" quem fez, 100% das vezes, sem regra escrita.
+
+E duas que juntam tudo:
+
+- **Plano de fala ordenado.** O tema da seção anterior era um saco de palavras. Para descrever uma cena ou responder, ela agora monta um *plano*: os sentidos que quer dizer, na ordem que aprendeu (quem faz, ação, alvo). Cada item entra quando a gramática deixa; antes dele, o caminho até ele ("a" antes de "gelatina", "está no" antes de "zoológico"); quando o plano acaba, ela termina a frase.
+- **Mapeamento rápido.** Uma única exposição basta para um nome novo: numa cena com o gato (já conhecido) e algo novo, a palavra nova se liga à coisa nova, porque a força da ligação é normalizada pelo quanto cada coisa já tem nome. É a "exclusividade mútua" das crianças, de graça.
+
+**Medido** (`logs/scenes.txt`; `eva2_scenes 10000 200`: infância de 10 mil momentos, 6.735 cenas):
+
+| teste | com o que ela aprendeu | sem (no mesmo cérebro) |
+|---|---|---|
+| **compreensão**: "o boi vê o leão": das duas cenas (o boi vendo o leão, o leão vendo o boi), qual é? pares que ela nunca viu juntos | **100%** | 48% (papéis sorteados; acaso = 50%) |
+| **descrição** de cenas novas: frase gramatical com cada papel no lugar certo | **77%** | 26% (ordem sorteada) |
+| **perguntas** sobre a cena de 3 cenas atrás ("cadê o gato?", "o que o gato come?", "quem come o peixe?"): gramatical e com o fato certo | **94%** (onde 98%, o quê 93%, quem 74%) | 4% (sem memória: sabe o que se pede, chuta o conteúdo) |
+| **pensando alto** em silêncio: o que ela diz é verdade (aconteceu e ela viu)? | **83%** (94% gramaticais) | — |
+
+Do log:
+
+```
+pergunta: "cadê o macaco?"         -> "o macaco está no zoológico"   (verdade: zoológico)
+pergunta: "quem come a uva?"       -> "o urso come a uva"             (verdade: urso)
+pergunta: "o que o gato vê?"       -> "o gato vê o morango"           (verdade: morango)
+pergunta: "quem vê o macaco?"      -> (silêncio)                      (verdade: amiga; não achou a lembrança)
+descrição: [coruja come pizza]     -> "a coruja come a pizza"
+descrição: [macaco vê pudim]       -> "o macaco vê o galo pudim"      <- errada
+pensando alto: "os jacarés comem o sanduíche"   [verdade: ela viu isso]
+pensando alto: "a barata gosta da abelha"       [verdade: ela viu isso]
+```
+
+E uma conversa de verdade depois de uma infância de 10 mil momentos (`logs/infancia_conversa.txt`). As três primeiras linhas são cenas que acontecem na frente dela (`/cena`):
+
+```
+(ela vê: mulher gosta irmã, em piscina; você diz: "as mulheres gostam das irmãs")
+(ela vê: jacaré está, em praia;         você diz: "o jacaré está na praia")
+(ela vê: zebra come doce, em sala;      você diz: "a zebra come o doce")
+/conta                  Eva: as zebras comem os doces
+Voce: cadê o jacaré     Eva: o jacaré está na praia
+Voce: o que a zebra come    Eva: as zebras comem os doces
+Voce: quem come o doce      Eva: as zebras comem os doces
+Voce: cadê a zebra          Eva: as zebras estão na sala
+Voce: cadê as mulheres      Eva: as mulheres estão na piscina
+Voce: o gato é bonito       Eva: o gato gosta da borboleta
+```
+
+Todas as respostas às perguntas estão certas. Ela ainda erra o número às vezes ("as zebras" para uma zebra só: ela não percebe quantos são, só quem são), e quando pensa alto sem uma lembrança, às vezes diz uma palavra solta ("bonito").
+
+Novos comandos na conversa: `/cena` (algo acontece na frente dela e você descreve), `/conta` (ela descreve a última cena com as palavras dela), e perguntas normais ("cadê o gato", "o que o gato come", "quem come o peixe"), que ela responde pela memória. `--infancia N` agora tem cenas e perguntas além de frases.
+
+**O que deu errado no caminho** (e ficou medido):
+
+- **A "saciedade" impedia o "a" de aparecer duas vezes**: "a girafa come ..." não conseguia dizer "a gelatina", porque palavras já ditas eram evitadas. Agora só palavras de conteúdo não se repetem. A descrição foi de 43% para 44%, e o resto veio das duas correções seguintes.
+- **Palavras raras não "cabiam"**: o plano exigia que a gramática previsse 80% do código de categoria da palavra; "pudim" (ouvido 27 vezes) não chegava lá. Com 60% para o que ela *quer* dizer, a descrição foi de 44% para 76% e as respostas de 76% para 91%.
+- **O relógio não era salvo**: ao carregar a memória, o tempo voltava a zero e as lembranças "do futuro" pesavam demais; ela repetia a mesma lembrança. Agora o relógio é salvo e contar uma lembrança gasta um pouco dela.
+
+**O que isto é e o que não é.** É compreensão e fala ligadas ao que aconteceu: ela entende quem fez o quê pela ordem das palavras, responde perguntas com o que lembra, e fala sozinha do que viu, quase sempre com verdade. As cenas, porém, chegam como símbolos (quem, o quê, onde), não como imagens; o mundo das cenas tem 5 tipos de acontecimento; e ela não percebe quantidade nem tempo (tudo é presente: "o gato come", não "o gato comeu"). O plano de fala, a recuperação de episódios e a pergunta→papel são arquitetura escrita; o que é aprendido é o sentido das palavras, a ordem dos papéis, o que cada palavra de pergunta pede, e a gramática que preenche o resto.
 
 ## Resultados, logs e imagens
 
@@ -277,6 +341,10 @@ Voce: o leão é grande                     Eva: é um leão
 |---|---|---|
 | frases longas (20 frases, 2 exposições, 8 sementes) | 83% das palavras, 123/160 frases inteiras | `logs/bench2.txt` |
 | falar sobre o assunto: responde usando um substantivo da sua frase, e gramatical | 46% com o tema; 1% sem | `logs/topic.txt` |
+| quem faz o quê: "o A vê o B", qual das duas cenas? | 100% (acaso 50%) | `logs/scenes.txt` |
+| descrever uma cena nova na ordem certa | 77% (26% com a ordem sorteada) | `logs/scenes.txt` |
+| responder "cadê / o que / quem" sobre o que viu 3 cenas atrás | 94% com memória; 4% sem | `logs/scenes.txt` |
+| pensando alto: o que ela diz aconteceu de verdade | 83% | `logs/scenes.txt` |
 | gramática: começar a frase com um bicho que ela só ouviu como objeto (20 mil frases) | 78% frases certas e novas com a gramática; 0% sem ela | `logs/grammar.txt` |
 | gramática: sujeitos conhecidos (20 mil frases) | 78% com a gramática; 67% sem | `logs/grammar.txt` |
 | categorias: o vizinho mais parecido é da mesma classe (20 mil frases) | 93% | `logs/grammar.txt`, `logs/categories_test.txt` |
@@ -293,7 +361,7 @@ cmake --build build        # requer PIL (python3 -m pip install pillow) só para
 ./build/eva2             # conversar com a Eva 2 (lembra de conversas anteriores)
 ./build/eva2 --demo      # demonstração automática
 ./build/eva2 --nova      # começar sem memória
-./build/eva2 --nova --infancia 20000   # antes de conversar, ela ouve 20 mil frases de uma casa (~12 min aqui)
+./build/eva2 --nova --infancia 10000   # antes de conversar, ela vive 10 mil momentos da casa: frases, cenas, perguntas (~8 min aqui)
 ./build/eva2 --grande    # córtex grande (16.384 colunas x 32 células), para máquinas com 16 GB
 ./build/eva2_grammar 10 2000 300 2     # a medição de gramática (veja v2/tests/README.md para todas)
 ./build/eva              # Eva 1: demonstração

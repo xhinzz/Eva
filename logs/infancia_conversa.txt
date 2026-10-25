@@ -1,15 +1,10 @@
 (Eva nova, sem memoria)
-(infancia: ela vai ouvir 20000 frases da fala de uma casa, dormindo a cada 2000)
-        dia 1: ouviu 2000 frases (total 2000); surpresa média 0.43; 653 palavras, 330 com categoria; 6.2 mi de sinapses
-        dia 2: ouviu 2000 frases (total 4000); surpresa média 0.32; 735 palavras, 522 com categoria; 8.9 mi de sinapses
-        dia 3: ouviu 2000 frases (total 6000); surpresa média 0.30; 762 palavras, 616 com categoria; 10.6 mi de sinapses
-        dia 4: ouviu 2000 frases (total 8000); surpresa média 0.29; 770 palavras, 676 com categoria; 11.8 mi de sinapses
-        dia 5: ouviu 2000 frases (total 10000); surpresa média 0.28; 772 palavras, 707 com categoria; 12.7 mi de sinapses
-        dia 6: ouviu 2000 frases (total 12000); surpresa média 0.28; 772 palavras, 730 com categoria; 13.5 mi de sinapses
-        dia 7: ouviu 2000 frases (total 14000); surpresa média 0.28; 772 palavras, 743 com categoria; 14.1 mi de sinapses
-        dia 8: ouviu 2000 frases (total 16000); surpresa média 0.28; 772 palavras, 753 com categoria; 14.7 mi de sinapses
-        dia 9: ouviu 2000 frases (total 18000); surpresa média 0.27; 772 palavras, 759 com categoria; 15.3 mi de sinapses
-        dia 10: ouviu 2000 frases (total 20000); surpresa média 0.27; 772 palavras, 768 com categoria; 15.8 mi de sinapses
+(infancia: ela vai viver 10000 momentos da casa (frases, cenas, perguntas), dormindo a cada 2000)
+        dia 1: 2000 momentos (total 2000); surpresa média 0.46; 580 palavras, 335 com categoria; 1318 episódios; 6.7 mi de sinapses
+        dia 2: 2000 momentos (total 4000); surpresa média 0.36; 669 palavras, 449 com categoria; 2609 episódios; 9.2 mi de sinapses
+        dia 3: 2000 momentos (total 6000); surpresa média 0.35; 703 palavras, 518 com categoria; 3901 episódios; 10.7 mi de sinapses
+        dia 4: 2000 momentos (total 8000); surpresa média 0.35; 723 palavras, 560 com categoria; 5236 episódios; 11.7 mi de sinapses
+        dia 5: 2000 momentos (total 10000); surpresa média 0.34; 742 palavras, 594 com categoria; 6489 episódios; 12.5 mi de sinapses
         (memoria salva)
 
 Como conversar com a Eva 2:
@@ -24,9 +19,12 @@ Como conversar com a Eva 2:
   /aponta objeto          aponte para algo que ela ve; a proxima frase sua cola nele
   /nomear objeto          o que ela diria vendo so esse objeto (teste de sentido)
   /sentido palavra        o que a palavra evoca nela (percepcoes, com forca)
-  /ouvir N                ela ouve N frases da fala de uma casa (e dorme a cada 2000)
+  /ouvir N                ela vive N momentos da casa: frases, cenas, perguntas (e dorme a cada 2000)
   /categoria palavra      de que especie ela acha que a palavra e (as mais parecidas)
   /tema                   do que ela acha que se esta falando agora
+  /cena                   uma coisa acontece na frente dela e voce descreve (ela guarda o episodio)
+  /conta                  ela descreve, com as palavras dela, a ultima cena que viu
+  (perguntas)             'cadê o gato', 'o que o gato come', 'quem come o peixe': ela responde pela memoria
   /imaginar palavras...   a imagem que as palavras evocam nela (varias = mistura) -> imaginou.ppm
   /olhar                  o que os olhos dela veem agora e como ela lembra cada coisa -> olhar.ppm
   estado                  dopamina, humor, impulsos, estados, tamanho da memoria
@@ -36,28 +34,34 @@ Tudo que ela diz e a previsao do cortex dela para a proxima palavra, dado
 tudo que veio antes. Ela aprende com voce e com ela mesma. A memoria fica
 em eva2_memoria.bin; o diario da conversa, em eva2_diario.txt.
 
-Voce:          'gato' (ouviu 220 vezes) e da especie de: rato(0.62) pato(0.60) lobo(0.57) tubarão(0.55) tio(0.52) golfinho(0.50) urso(0.50) amigo(0.50)
-Voce:          'bonita' (ouviu 8 vezes) e da especie de: velha(0.68) perfumada(0.60) roxa(0.57) listrada(0.43) cansada(0.38) brava(0.38) alegre(0.30) redonda(0.28)
-Voce:          Eva: o cachorro ... está na praia
-Voce:          Eva: a girafa ...
-Voce:          Eva: as vacas ... veem a bicicleta
-Voce:         (surpresa 0.50, dopamina 0.65)
-         Eva: o gato é bonito   [resposta <curiosa> <surpresa>]
-         Eva: (aponta para cama)   [aponta <curiosa>]
-Voce:          assunto agora: gato(1.10) bonito(1.10)
-Voce:         (surpresa 0.31, dopamina 0.59)
-         Eva: a banana é brava   [resposta]
-Voce:          assunto agora: banana(1.10) come(1.00) vaca(1.00) bonito(0.95) gato(0.55) brava(0.10)
-Voce:         (surpresa 0.45, dopamina 0.64)
-         Eva: é uma banana   [resposta <surpresa>]
-Voce:         (surpresa 0.32, dopamina 0.60)
-         Eva: o iogurte está no parque   [resposta]
-Voce:         (surpresa 0.45, dopamina 0.64)
-         Eva: as meninas querem brincar   [resposta <surpresa>]
-Voce:         (surpresa 0.42, dopamina 0.63)
-         Eva: é um leão   [resposta <feliz> <surpresa>]
-         Eva pegou pao   [{pegar:pao}]
-         Eva comeu pao   [{comer}, recompensa]
-Voce:         dopamina 0.30 | humor 0.47 | vontade de falar 0.52 | curiosidade 0.22 | estados: <feliz>
-        palavras 786 (768 com categoria) | segmentos 394499 | sinapses 11.18 mi (palavras) + 4.69 mi (categorias) | turnos 20020
+Voce:          'gato' (ouviu 181 vezes) e da especie de: rato(0.65) pássaro(0.62) pato(0.57) médico(0.55) cavalo(0.52) coelho(0.50) tio(0.47) palhaço(0.47)
+Voce:          (ela vê: mulher gosta irmã, em piscina; você diz: "as mulheres gostam das irmãs")
+Voce:          (ela vê: jacaré está , em praia; você diz: "o jacaré está na praia")
+Voce:          (ela vê: zebra come doce, em sala; você diz: "a zebra come o doce")
+Voce:          Eva: as zebras comem os doces
+Voce:         (surpresa 0.58, dopamina 0.68)
+         Eva: o jacaré está na praia   [resposta <curiosa> <surpresa>]
+         Eva olhou em volta   [{olhar}]
+         Eva: (aponta para janela)   [aponta <curiosa>]
+Voce:         (surpresa 0.16, dopamina 0.55)
+         Eva: as zebras comem os doces   [resposta]
+Voce:         (surpresa 0.39, dopamina 0.62)
+         Eva: as zebras comem os doces   [resposta]
+Voce:         (surpresa 0.26, dopamina 0.58)
+         Eva: as zebras estão na sala   [resposta]
+         Eva foi para cozinha   [{ir:cozinha}]
+Voce:         (surpresa 0.30, dopamina 0.59)
+         Eva: as mulheres estão na piscina   [resposta <feliz>]
+Voce:         (surpresa 0.52, dopamina 0.66)
+         Eva: o gato gosta da borboleta   [resposta <feliz> <surpresa>]
+         Eva pegou cafe   [{pegar:cafe}]
+         Eva comeu cafe   [{comer}, recompensa]
+Voce:          assunto agora: gato(1.10) é(1.00) bonito(1.00) mulheres(0.95) cadê(0.75) zebra(0.31) que(0.16) quem(0.12)
+Voce:          Eva: bonito   [pensamento <feliz>]
+         Eva: (aponta para mesa)   [aponta <curiosa>]
+         Eva: as ovelhas estão no berço   [pensamento]
+         Eva: bonito   [pensamento <curiosa>]
+         Eva: (aponta para mesa)   [aponta <curiosa>]
+Voce:         dopamina 0.30 | humor 0.02 | vontade de falar 1.00 | curiosidade 0.53 | estados: (nenhum)
+        palavras 759 (594 com categoria) | segmentos 305628 | sinapses 8.32 mi (palavras) + 4.20 mi (categorias) | turnos 14125
 Voce:         (memoria salva)

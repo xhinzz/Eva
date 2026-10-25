@@ -9,7 +9,7 @@
 
 namespace eva2 {
 
-static constexpr char kMemoryMagic[8] = {'E', 'V', 'A', '2', 'm', 'e', 'm', '5'};
+static constexpr char kMemoryMagic[8] = {'E', 'V', 'A', '2', 'm', 'e', 'm', '6'};
 
 std::string Utterance::text() const {
     std::string s;
@@ -281,7 +281,11 @@ void Eva2::observe_categories(const std::vector<std::string>& words) {
     if (next_counts_.size() < vocab_.words.size()) {
         next_counts_.resize(vocab_.words.size()); next_total_.resize(vocab_.words.size(), 0.0f); prev_total_.resize(vocab_.words.size(), 0.0f);
     }
-    for (size_t i = 0; i + 1 < ids.size(); ++i) { next_counts_[ids[i]][ids[i + 1]] += 1.0f; next_total_[ids[i]] += 1.0f; prev_total_[ids[i + 1]] += 1.0f; }
+    if (prev_counts_.size() < vocab_.words.size()) prev_counts_.resize(vocab_.words.size());
+    for (size_t i = 0; i + 1 < ids.size(); ++i) {
+        next_counts_[ids[i]][ids[i + 1]] += 1.0f; next_total_[ids[i]] += 1.0f; prev_total_[ids[i + 1]] += 1.0f;
+        prev_counts_[ids[i + 1]][ids[i]] += 1.0f;
+    }
     if (!cfg_.categories_enabled) return;
     cats_.observe(ids, words);
     for (int id : ids)
@@ -398,7 +402,86 @@ int Eva2::predict_next(std::vector<int>* overlaps_out) {
         std::fprintf(stderr, " | ja disse o assunto: %d | gramatica segura: %zu colunas\n", topic_said_, csure.size());
     }
     const auto call = ctm_.predicted_columns(false);
-    if (use_topic && !topic_said_ && !call.empty()) {
+    auto fits_now = [&](size_t k) {
+        const auto code = vocab_.category_code(static_cast<int>(k));
+        return Vocabulary::overlap_sorted(code, call) / static_cast<double>(std::max<size_t>(1, code.size())) >= cfg_.topic_fit;
+    };
+    // P. Plano: ela sabe o que quer dizer e em que ordem (descrever uma cena,
+    //    responder uma pergunta). O próximo item do plano entra se a gramática
+    //    deixa; senão, o caminho até ele (as palavras que costumam vir logo antes,
+    //    ou duas antes: "está na" antes de "sala"); quando o plano acabou, o fim.
+    if (plan_active_ && !call.empty()) {
+        const int end_id = vocab_.id(kEnd);
+        if (plan_pos_ >= plan_.size()) {
+            if (end_id >= 0 && fit(end_id) >= cfg_.category_match) return end_id;
+        } else {
+            const auto& item = plan_[plan_pos_];
+            double best_sup = 0.0;
+            for (size_t k = 0; k < vocab_.words.size(); ++k) if (sayable(k) && fits_now(k)) best_sup = std::max(best_sup, support(k));
+            std::vector<int> ids; std::vector<double> w;
+            // o que ela quer dizer só precisa caber; não precisa ser a espécie mais apoiada
+            for (int k : item)
+                if (sayable(k) && !said_recently(k) && fit(k) >= cfg_.plan_fit && support(k) >= 0.15 * best_sup) { ids.push_back(k); w.push_back(support(k)); }
+            if (std::getenv("EVA2_GDEBUG")) {
+                std::fprintf(stderr, "    plano item %zu/%zu:", plan_pos_ + 1, plan_.size());
+                for (int k : item) std::fprintf(stderr, " %s(cabe=%.2f,apoio=%.2f)", vocab_.words[k].c_str(), fit(k), support(k));
+                std::fprintf(stderr, " | melhor apoio %.2f\n", best_sup);
+            }
+            if (!ids.empty()) {
+                std::discrete_distribution<size_t> pick(w.begin(), w.end());
+                ++gen_stats_.topic;
+                return ids[pick(rng_)];
+            }
+            // Palavra rara, ainda sem categoria: a gramática não tem opinião sobre ela.
+            // Se a palavra anterior é o caminho usual até ela ("o" antes de "pudim"),
+            // a intenção basta.
+            if (!recent_said_.empty()) {
+                const int prev = vocab_.id(recent_said_.back());
+                int pick_k = -1; double bp1 = 0.2;
+                for (int t : item) {
+                    if (cats_.has_code(t) || said_recently(t) || t >= static_cast<int>(prev_counts_.size()) || prev_total_[t] <= 0) continue;
+                    auto it = prev_counts_[t].find(prev);
+                    const double p1 = it == prev_counts_[t].end() ? 0.0 : it->second / prev_total_[t];
+                    if (p1 > bp1) { bp1 = p1; pick_k = t; }
+                }
+                if (pick_k >= 0) { ++gen_stats_.topic; return pick_k; }
+            }
+            // caminho: P(k vem logo antes de t) e P(k vem duas antes de t)
+            std::unordered_map<int, double> path;
+            for (int t : item) {
+                if (t >= static_cast<int>(prev_counts_.size()) || prev_total_[t] <= 0) continue;
+                for (const auto& [m, c1] : prev_counts_[t]) {
+                    const double p1 = c1 / prev_total_[t];
+                    path[m] = std::max(path[m], p1);
+                    if (m >= static_cast<int>(prev_counts_.size()) || prev_total_[m] <= 0) continue;
+                    for (const auto& [k, c2] : prev_counts_[m]) path[k] = std::max(path[k], 0.7 * p1 * (c2 / prev_total_[m]));
+                }
+            }
+            int best = -1; double bp = 0.0;
+            for (const auto& [k, p] : path) {
+                if (p < 0.05) continue;
+                if (k >= static_cast<int>(vocab_.words.size()) || !sayable(k) || !fits_now(k)) continue;
+                // "a" pode vir duas vezes na mesma frase ("a girafa come a gelatina");
+                // só palavras de conteúdo não se repetem
+                if (said_recently(k) && meaning_.frequency(vocab_.words[k]) <= cfg_.topic_function_freq) continue;
+                if (support(k) < 0.15 * best_sup) continue;
+                // o caminho usual, pesado pelo quanto a gramática apoia aquela palavra aqui
+                // ("gostam das zebras": "das" é menos usual antes de "zebras" que "as", mas muito mais apoiado)
+                const double sc = p * support(k);
+                if (sc > bp) { bp = sc; best = k; }
+            }
+            if (std::getenv("EVA2_GDEBUG")) {
+                std::vector<std::pair<double, int>> top;
+                for (const auto& [k, p] : path) if (k < static_cast<int>(vocab_.words.size())) top.push_back({p, k});
+                std::sort(top.rbegin(), top.rend());
+                std::fprintf(stderr, "    caminho:");
+                for (size_t i = 0; i < top.size() && i < 6; ++i) std::fprintf(stderr, " %s(%.2f,cabe=%d,apoio=%.2f)", vocab_.words[top[i].second].c_str(), top[i].first, (int)fits_now(top[i].second), support(top[i].second));
+                std::fprintf(stderr, " -> %s\n", best >= 0 ? vocab_.words[best].c_str() : "(nada)");
+            }
+            if (best >= 0) { ++gen_stats_.topic; return best; }
+        }
+    }
+    if (use_topic && !topic_said_ && !call.empty() && !plan_active_) {
         // a gramática inteira (não só a "segura"): no começo da fala, a parte segura
         // é só o hábito dela ("os ..."), e o hábito não pode calar o assunto
         auto sure_fit = [&](size_t k) {
@@ -526,6 +609,8 @@ std::vector<std::string> Eva2::generate(int max_words, bool learn) {
         if (!is_internal(w)) {
             out.push_back(w); recent_said_.push_back(w); burst_used = false;
             if (id < static_cast<int>(topic_.size()) && topic_[id] >= cfg_.topic_intent) topic_said_ = true;
+            if (plan_active_ && plan_pos_ < plan_.size() &&
+                std::find(plan_[plan_pos_].begin(), plan_[plan_pos_].end(), id) != plan_[plan_pos_].end()) ++plan_pos_;
         }
         step_token(id, learn, cfg_.self_learning * dopa_.level);
         last_id = id;
@@ -552,7 +637,18 @@ std::vector<Utterance> Eva2::respond() {
         return false;
     };
 
-    if (!novel) {
+    // uma pergunta que ela sabe responder: a resposta vem da memória, com plano
+    bool answered = false;
+    if (!last_heard_.empty()) {
+        auto plan = answer_plan(last_heard_);
+        if (!plan.empty()) {
+            plan_ = plan; plan_pos_ = 0; plan_active_ = true;
+            words = generate(cfg_.max_reply_words, true);
+            plan_active_ = false; plan_.clear();
+            answered = !words.empty();
+        }
+    }
+    if (!answered && !novel) {
         words = generate(cfg_.max_reply_words, true);
         // habituação: se ia dizer exatamente o que acabou de dizer, tenta outro caminho
         if (!words.empty() && is_repeat(words)) {
@@ -563,7 +659,7 @@ std::vector<Utterance> Eva2::respond() {
             words = is_repeat(alt) ? std::vector<std::string>{} : alt;
         }
     }
-    if (words.empty() && !last_heard_.empty()) {
+    if (!answered && words.empty() && !last_heard_.empty()) {
         // novidade (ou nada a dizer): imitar. A primeira palavra que você disse
         // entra no turno dela e o córtex segue dali, como uma criança repetindo.
         reset_cortex();
@@ -772,6 +868,230 @@ bool Eva2::give(const std::string& object, std::string* result) {
 // do quanto cada uma evoca a palavra); o resto da frase vem do córtex de
 // sequências, a partir dela. Uma imagem nunca vista é nomeada pelo que ela
 // compartilha com imagens vistas: é generalização de verdade.
+// ---------------------------------------------------------------- cenas, episódios, papéis, perguntas
+
+std::string Eva2::meaning_of(const std::string& word) const {
+    if (Vocabulary::internal(word)) return {};
+    // Uma exposição basta para um nome novo: numa cena com o gato (já conhecido)
+    // e algo novo, a palavra nova se liga ao novo, porque a força é normalizada
+    // pelo quanto cada percepção já tem nome (exclusividade mútua, de graça).
+    for (const auto& [p, sc] : meaning_.perceptions_for(word, cfg_.meaning_threshold, cfg_.fast_mapping_evidence))
+        if (p.rfind("[ve:", 0) == 0 || p.rfind("[lugar:", 0) == 0 || p.rfind("[acao:", 0) == 0) return p;  // a mais forte primeiro
+    return {};
+}
+
+// as palavras da frase que têm sentido para ela, na ordem: (posição entre elas, sentido)
+std::vector<std::pair<int, std::string>> Eva2::content_slots(const std::vector<std::string>& words) const {
+    std::vector<std::pair<int, std::string>> out;
+    for (const auto& w : words) {
+        const std::string m = meaning_of(w);
+        if (m.empty()) continue;
+        bool dup = false;
+        for (const auto& [k, mm] : out) if (mm == m) dup = true;
+        if (!dup) out.push_back({static_cast<int>(out.size()), m});
+    }
+    return out;
+}
+
+// As palavras que nomeiam um sentido ("gato", "gatos" para [ve:gato]). Só as
+// que se ligam a ele quase tanto quanto a mais ligada: "o" e "a" vêm com tudo
+// e não nomeiam nada.
+std::vector<int> Eva2::forms_of(const std::string& meaning) const {
+    std::vector<std::pair<int, float>> cand;
+    float best = 0.0f;
+    for (size_t k = 0; k < vocab_.words.size(); ++k) {
+        if (meaning_of(vocab_.words[k]) != meaning) continue;
+        const float st = meaning_.strength(meaning, vocab_.words[k]);
+        cand.push_back({static_cast<int>(k), st});
+        best = std::max(best, st);
+    }
+    std::vector<int> out;
+    for (const auto& [k, st] : cand) if (st >= 0.5f * best) out.push_back(k);
+    return out;
+}
+
+void Eva2::rebuild_prev_counts() {
+    prev_counts_.assign(next_counts_.size(), {});
+    for (size_t k = 0; k < next_counts_.size(); ++k)
+        for (const auto& [t, c] : next_counts_[k]) if (t < static_cast<int>(prev_counts_.size())) prev_counts_[t][static_cast<int>(k)] = c;
+}
+
+static std::vector<std::pair<std::string, float>> scene_percepts(const Scene& s) {
+    std::vector<std::pair<std::string, float>> p;
+    if (!s.agent.empty()) p.push_back({"[ve:" + s.agent + "]", 1.0f});
+    if (!s.patient.empty()) p.push_back({"[ve:" + s.patient + "]", 1.0f});
+    if (!s.place.empty()) p.push_back({"[lugar:" + s.place + "]", 1.0f});
+    if (!s.action.empty()) p.push_back({"[acao:" + s.action + "]", 1.0f});
+    return p;
+}
+
+static int role_in(const Scene& s, const std::string& m) {
+    if (m == "[ve:" + s.agent + "]") return kAgent;
+    if (!s.patient.empty() && m == "[ve:" + s.patient + "]") return kPatient;
+    if (m == "[lugar:" + s.place + "]") return kPlace;
+    if (m == "[acao:" + s.action + "]") return kAction;
+    return -1;
+}
+
+void Eva2::witness(const Scene& scene, const std::vector<std::string>& words, float dopamine) {
+    listen(words, dopamine);
+    meaning_.bind_event(scene_percepts(scene), words, dopamine);
+    // papéis: em que posição (entre as palavras com sentido) vem cada papel da cena
+    for (const auto& [slot, m] : content_slots(words)) {
+        const int r = role_in(scene, m);
+        if (r >= 0) roles_.bind(slot, r);
+    }
+    if (cfg_.episodes_enabled) episodes_.store(scene, clock_ms_, dopamine);
+    clock_ms_ += 3000;
+}
+
+void Eva2::listen_turns(const std::vector<std::vector<std::string>>& turns, float dopamine) {
+    // uma troca inteira, sem recomeçar no meio: a pergunta e a resposta ficam ligadas
+    reset_cortex();
+    bool first = true;
+    for (const auto& t : turns) {
+        std::vector<std::string> tokens{first ? kYou : kMe};
+        tokens.insert(tokens.end(), t.begin(), t.end());
+        tokens.push_back(kEnd);
+        feed_tokens(tokens, true, dopamine);
+        observe_categories(t);
+        history_.push_back({!first, tokens, dopamine});
+        first = false;
+    }
+    reset_cortex();
+}
+
+void Eva2::witness_dialogue(const Scene& scene, const std::vector<std::string>& question, const std::vector<std::string>& answer) {
+    // quem cuida pergunta e responde por ela ("cadê o gato? ... o gato está na sala!"):
+    // a resposta entra no turno dela, como andaime
+    listen_turns({question, answer}, 0.7f);
+    meaning_.bind_event(scene_percepts(scene), answer, 0.7f);
+    // o que a resposta trouxe que a pergunta não tinha
+    std::vector<std::string> asked;
+    for (const auto& [k, m] : content_slots(question)) asked.push_back(m);
+    int brought = -1;
+    for (const auto& [k, m] : content_slots(answer)) {
+        if (std::find(asked.begin(), asked.end(), m) != asked.end()) continue;
+        const int r = role_in(scene, m);
+        if (r == kAgent || r == kPatient || r == kPlace) { brought = r; break; }
+    }
+    if (brought < 0) return;
+    // cada palavra da pergunta sem sentido próprio ("cadê", "quem", "que", "o") fica ligada ao que foi pedido
+    for (const auto& w : question) if (meaning_of(w).empty()) qwords_.bind(w, brought);
+}
+
+std::vector<std::vector<int>> Eva2::plan_for(const Scene& s, const std::vector<int>& roles, bool use_order) {
+    std::vector<int> order = roles;
+    if (use_order) std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return roles_.expected_slot(a) < roles_.expected_slot(b); });
+    else std::shuffle(order.begin(), order.end(), rng_);
+    std::vector<std::vector<int>> plan;
+    for (int r : order) {
+        std::string m;
+        if (r == kAgent) m = "[ve:" + s.agent + "]";
+        else if (r == kPatient) m = "[ve:" + s.patient + "]";
+        else if (r == kPlace) m = "[lugar:" + s.place + "]";
+        else m = "[acao:" + s.action + "]";
+        auto forms = forms_of(m);
+        if (!forms.empty()) plan.push_back(forms);
+    }
+    return plan;
+}
+
+std::vector<std::string> Eva2::speak_plan(const std::vector<std::vector<int>>& plan, bool learn) {
+    if (plan.empty()) return {};
+    reset_cortex();
+    feed(kMe, learn, dopa_.level);
+    plan_ = plan;
+    plan_pos_ = 0;
+    plan_active_ = true;
+    auto words = generate(cfg_.max_reply_words, learn);
+    plan_active_ = false;
+    plan_.clear();
+    reset_cortex();
+    return words;
+}
+
+std::vector<std::string> Eva2::describe(const Scene& scene, bool use_order) {
+    std::vector<int> roles{kAgent, kAction};
+    if (!scene.patient.empty()) roles.push_back(kPatient);
+    else if (scene.action == "está") roles.push_back(kPlace);
+    const bool saved = role_order_in_speech_;
+    auto words = speak_plan(plan_for(scene, roles, use_order && role_order_in_speech_), false);
+    role_order_in_speech_ = saved;
+    return words;
+}
+
+int Eva2::understand(const std::vector<std::string>& words, const std::vector<Scene>& options) {
+    Scene guess;
+    for (const auto& [slot, m] : content_slots(words)) {
+        if (m.rfind("[acao:", 0) == 0) { guess.action = m.substr(6, m.size() - 7); continue; }
+        if (m.rfind("[ve:", 0) != 0) continue;
+        const std::string ent = m.substr(4, m.size() - 5);
+        int r;
+        if (role_order_in_understanding_) r = roles_.role_for_slot(slot, {kAgent, kPatient});
+        else { std::uniform_int_distribution<int> c(0, 1); r = c(rng_) ? kAgent : kPatient; }
+        if (r == kAgent && guess.agent.empty()) guess.agent = ent;
+        else if (guess.patient.empty()) guess.patient = ent;
+        else if (guess.agent.empty()) guess.agent = ent;
+    }
+    int best = -1, bs = -1;
+    std::vector<int> ties;
+    for (size_t i = 0; i < options.size(); ++i) {
+        const Scene& o = options[i];
+        const int sc = (o.agent == guess.agent) + (o.patient == guess.patient) + (o.action == guess.action);
+        if (sc > bs) { bs = sc; ties = {static_cast<int>(i)}; }
+        else if (sc == bs) ties.push_back(static_cast<int>(i));
+    }
+    if (ties.empty()) return -1;
+    std::uniform_int_distribution<size_t> pick(0, ties.size() - 1);
+    best = ties[pick(rng_)];
+    return best;
+}
+
+// Pergunta -> o que se pede (aprendido) -> a lembrança que responde -> o plano da resposta
+std::vector<std::vector<int>> Eva2::answer_plan(const std::vector<std::string>& question) {
+    if (!cfg_.episodes_enabled) return {};
+    auto [asked, conf] = qwords_.asks(question);
+    if (asked < 0 || conf < cfg_.question_confidence) return {};
+    Scene cue;
+    for (const auto& [slot, m] : content_slots(question)) {
+        if (m.rfind("[acao:", 0) == 0) cue.action = m.substr(6, m.size() - 7);
+        else if (m.rfind("[ve:", 0) == 0) {
+            const std::string ent = m.substr(4, m.size() - 5);
+            if (asked == kAgent) cue.patient = ent; else if (cue.agent.empty()) cue.agent = ent;
+        }
+    }
+    if (cue.agent.empty() && cue.patient.empty()) return {};
+    Scene told;
+    if (memory_in_answers_) {
+        const Episode* ep = nullptr;
+        if (asked == kPlace) {
+            // onde está X: onde X apareceu por último, fazendo ou sofrendo a ação
+            for (auto it = episodes_.all().rbegin(); it != episodes_.all().rend() && !ep; ++it)
+                if (it->scene.agent == cue.agent || it->scene.patient == cue.agent) ep = &*it;
+        } else ep = episodes_.recall(cue, asked);
+        if (!ep) return {};
+        told = ep->scene;
+    } else {
+        // sem memória: ela sabe o que se pede, mas chuta o conteúdo (um episódio qualquer)
+        if (episodes_.size() == 0) return {};
+        std::uniform_int_distribution<size_t> pick(0, episodes_.size() - 1);
+        told = episodes_.all()[pick(rng_)].scene;
+        if (!cue.agent.empty()) told.agent = cue.agent;
+        if (!cue.patient.empty() && asked == kAgent) told.patient = cue.patient;
+    }
+    if (asked == kPlace) {
+        Scene at{told.agent.empty() ? cue.agent : told.agent, "está", "", told.place};
+        if (!cue.agent.empty() && cue.agent != told.agent) at.agent = cue.agent;  // cadê o X: X está onde o episódio aconteceu
+        return plan_for(at, {kAgent, kAction, kPlace}, role_order_in_speech_);
+    }
+    return plan_for(told, {kAgent, kAction, kPatient}, role_order_in_speech_);
+}
+
+std::vector<std::string> Eva2::answer(const std::vector<std::string>& question) {
+    return speak_plan(answer_plan(question), false);
+}
+
 // ---------------------------------------------------------------- tema
 
 void Eva2::add_topic(const std::string& w, float weight) {
@@ -911,7 +1231,16 @@ std::vector<Utterance> Eva2::idle(int ms) {
             perceive(false);
             feed_tokens(head, false, 1.0f);
             std::vector<std::string> words;
-            if (cfg_.world_enabled) {
+            std::uniform_real_distribution<double> u01(0.0, 1.0);
+            if (cfg_.episodes_enabled && episodes_.size() > 0 && u01(rng_) < cfg_.recall_chance) {
+                // lembrar: um episódio marcante e recente volta, e ela conta
+                if (const Episode* ep = episodes_.salient(clock_ms_, u01(rng_))) {
+                    words = describe(ep->scene);
+                    if (!words.empty()) last_recalled_ = ep->scene;
+                    episodes_.told(ep);
+                }
+            }
+            if (words.empty() && cfg_.world_enabled) {
                 // a coisa à vista com nome mais firme puxa a fala
                 std::string best; float bs = 0.0f;
                 for (const auto& p : world_.perceive()) {
@@ -1033,6 +1362,10 @@ bool Eva2::save() const {
     out.write(reinterpret_cast<const char*>(&drives_.curiosity), sizeof drives_.curiosity);
     meaning_.save(out);
     cats_.save(out);
+    episodes_.save(out);
+    roles_.save(out);
+    qwords_.save(out);
+    out.write(reinterpret_cast<const char*>(&clock_ms_), sizeof clock_ms_);
     {   // caminhos entre palavras (quem vem antes de quem): servem ao tema
         const uint32_t n = static_cast<uint32_t>(next_counts_.size());
         out.write(reinterpret_cast<const char*>(&n), sizeof n);
@@ -1116,6 +1449,10 @@ bool Eva2::load() {
     in.read(reinterpret_cast<char*>(&drives_.curiosity), sizeof drives_.curiosity);
     meaning_.load(in);
     cats_.load(in);
+    episodes_.load(in);
+    roles_.load(in);
+    qwords_.load(in);
+    in.read(reinterpret_cast<char*>(&clock_ms_), sizeof clock_ms_);
     {
         uint32_t n = 0;
         in.read(reinterpret_cast<char*>(&n), sizeof n);
@@ -1133,6 +1470,7 @@ bool Eva2::load() {
                 next_counts_[k][t] = c;
             }
         }
+        rebuild_prev_counts();
     }
     vision_.load(in);
     uint32_t nu = 0;

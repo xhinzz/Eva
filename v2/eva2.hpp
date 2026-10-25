@@ -25,6 +25,7 @@
 #include "semantics.hpp"
 #include "vision.hpp"
 #include "categories.hpp"
+#include "episodes.hpp"
 
 namespace eva2 {
 using eva::Dopamine;
@@ -49,12 +50,18 @@ struct Eva2Config {
     float topic_function_freq = 0.12f;  // palavras em mais frases que isto ("o", "é") não são tema
     float topic_intent = 0.3f;     // tema acima disto é "o que ela quer dizer": entra se a gramática deixar
     float topic_fit = 0.8f;        // ... e se a gramática, segura, prevê tanto do código de categoria dela
+    // Episódios, papéis e perguntas (episodes.hpp)
+    bool episodes_enabled = true;
+    float question_confidence = 0.7f;  // quão certa ela precisa estar de que ouviu uma pergunta
+    float recall_chance = 0.8f;
+    float plan_fit = 0.6f;             // o que ela quer dizer entra se a gramática prevê tanto do código dele        // ao pensar alto, chance de lembrar um episódio em vez de olhar em volta
     int min_overlap = 16;        // colunas previstas que uma palavra precisa ter para ser "a próxima"
     int max_reply_words = 12;
     int max_actions_per_turn = 3;
     bool world_enabled = true;
     float meaning_threshold = 0.3f;   // força (≈cosseno) mínima para uma palavra "significar" uma percepção
-    float meaning_min_evidence = 1.5f;  // soma de dopamina ouvida (≈ 2 vezes, ou 1 apontando) antes de uma palavra guiar ações
+    float meaning_min_evidence = 1.5f;
+    float fast_mapping_evidence = 0.5f;  // nas cenas: uma exposição já basta para um nome novo (mapeamento rápido)  // soma de dopamina ouvida (≈ 2 vezes, ou 1 apontando) antes de uma palavra guiar ações
     float function_word_freq = 0.4f;  // palavra em mais de 40% das frases não guia a imaginação
     float attention_gain = 3.0f;      // quanto o objeto apontado pesa a mais na ligação
     float unattended_gain = 0.3f;     // e quanto o resto pesa a menos  // soma de dopamina ouvida (≈ 2-3 vezes) antes de uma palavra guiar ações  // força mínima para uma palavra "significar" uma percepção
@@ -118,6 +125,30 @@ public:
 
     // Você fala. Ela vive a frase como sequência, com o estado dela por dentro.
     Heard hear(const std::vector<std::string>& words, float reward = 0.0f);
+    // Ela vê uma cena acontecer e ouve alguém descrevê-la ("o gato come o peixe").
+    // Guarda o episódio, liga palavras ao que viu e aprende em que posição da
+    // frase vem quem faz, a ação, o alvo, o lugar.
+    void witness(const Scene& scene, const std::vector<std::string>& words, float dopamine = 0.6f);
+    // Alguém pergunta sobre a cena e responde ("cadê o gato?" "o gato está na sala").
+    // Ela aprende o que cada palavra de pergunta pede.
+    void witness_dialogue(const Scene& scene, const std::vector<std::string>& question, const std::vector<std::string>& answer);
+    // Ela descreve uma cena com as próprias palavras, na ordem que aprendeu
+    // (use_order = false: as partes em ordem sorteada, para comparar)
+    std::vector<std::string> describe(const Scene& scene, bool use_order = true);
+    // Compreensão: das cenas oferecidas, qual a frase descreve? (índice; -1 = não sabe)
+    int understand(const std::vector<std::string>& words, const std::vector<Scene>& options);
+    // Resposta a uma pergunta pela memória (vazio se não for pergunta ou se ela não lembra)
+    std::vector<std::string> answer(const std::vector<std::string>& question);
+    const EpisodicMemory& episodes() const { return episodes_; }
+    const RoleOrder& role_order() const { return roles_; }
+    const QuestionWords& question_words() const { return qwords_; }
+    void set_memory_in_answers(bool on) { memory_in_answers_ = on; }
+    const Scene& last_recalled() const { return last_recalled_; }  // o último episódio que ela contou sozinha
+    void set_role_order_in_speech(bool on) { role_order_in_speech_ = on; }
+    void set_role_order_in_understanding(bool on) { role_order_in_understanding_ = on; }
+    // o sentido que uma palavra tem para ela ("[ve:gato]", "[acao:come]", "[lugar:sala]"; vazio se nenhum)
+    std::string meaning_of(const std::string& word) const;
+
     // Ela ouve sem ser com ela (a conversa da casa, alguém falando perto): grava
     // a frase e o contexto das palavras, sem responder nem reler a conversa.
     // É a maior parte do que uma criança ouve.
@@ -218,6 +249,23 @@ private:
     void decay_topic(float factor);
     float topical(int k) const;
     std::pair<std::string, float> visual_name(const VisualCode& c) const;
+    // episódios, papéis, perguntas, e o plano de fala ordenado
+    EpisodicMemory episodes_;
+    RoleOrder roles_;
+    QuestionWords qwords_;
+    bool memory_in_answers_ = true, role_order_in_speech_ = true, role_order_in_understanding_ = true;
+    std::vector<std::unordered_map<int, float>> prev_counts_;  // quem vem antes de cada palavra
+    std::vector<std::vector<int>> plan_;  // o que ela quer dizer, em ordem (cada item: as formas de um sentido)
+    size_t plan_pos_ = 0;
+    Scene last_recalled_;
+    bool plan_active_ = false;
+    std::vector<std::pair<int, std::string>> content_slots(const std::vector<std::string>& words) const;
+    std::vector<int> forms_of(const std::string& meaning) const;
+    std::vector<std::vector<int>> plan_for(const Scene& s, const std::vector<int>& roles, bool use_order);
+    std::vector<std::string> speak_plan(const std::vector<std::vector<int>>& plan, bool learn);
+    std::vector<std::vector<int>> answer_plan(const std::vector<std::string>& question);
+    void listen_turns(const std::vector<std::vector<std::string>>& turns, float dopamine);
+    void rebuild_prev_counts();
     void step_token(int id, bool learn, float dopamine);
     void reset_cortex();
     // As duas áreas trabalham ao mesmo tempo, como no cérebro: o córtex de

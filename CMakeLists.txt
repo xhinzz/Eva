@@ -24,7 +24,7 @@ target_link_libraries(eva2 PRIVATE Threads::Threads)
 
 # Medições da Eva 2 (v2/tests)
 set(EVA2_CORE v2/eva2.cpp v2/temporal_memory.cpp v2/vision.cpp)
-foreach(t bench ground grammar topic)
+foreach(t bench ground grammar topic scenes)
   add_executable(eva2_${t} v2/tests/${t}.cpp ${EVA2_CORE})
   target_include_directories(eva2_${t} PRIVATE v2 v2/tests src)
   target_link_libraries(eva2_${t} PRIVATE Threads::Threads)

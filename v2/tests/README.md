@@ -12,6 +12,7 @@ Todos os testes compilam junto com o resto:
 | `eva2_vision_test` | só o córtex visual: erro de V1, erro de imaginação, sobreposição de códigos; escreve `ve/v1/imagina/mistura.ppm` | `./build/eva2_vision_test` |
 | `eva2_categories_test` | só as categorias (segundos): o vizinho mais parecido de cada palavra é da mesma classe? | `V=1 ./build/eva2_categories_test 20000` |
 | `eva2_topic` | falar sobre o assunto: depois de uma infância, responde frases novas; no assunto, gramatical, eco, com e sem o tema | `CACHE=cerebro.bin V=1 ./build/eva2_topic 10000 300` (`ECO=1` liga a imitação, `GAIN` o peso do tema) |
+| `eva2_scenes` | cenas: compreensão de quem faz o quê, descrição, perguntas pela memória, lembranças espontâneas (com e sem cada peça) | `CACHE=cerebro.bin V=1 ./build/eva2_scenes 10000 200` (momentos da infância, testes) |
 | `eva2_grammar` | gramática emergente: dias de fala de uma casa + sono; continua frases com sujeitos que nunca ouviu como sujeito | `V=1 ./build/eva2_grammar 10 2000 300 2` (dias, frases/dia, episódios de sono, sementes) |
 
 Variáveis de ambiente úteis no `eva2_grammar`: `CAT=0` (sem categorias: nem aprende),

@@ -1,0 +1,45 @@
+  infância: 2000 momentos
+  infância: 4000 momentos
+  infância: 6000 momentos
+  infância: 8000 momentos
+  infância: 10000 momentos
+ordem aprendida (posição média entre as palavras com sentido, 0 = primeira):  quem faz 0.76  ação 1.38  alvo 2.47  lugar 2.73
+o que cada palavra de pergunta pede:  'cadê' -> lugar (100%)  'que' -> alvo (100%)  'quem' -> quem faz (100%)
+  compreensão: "o boi vê o leão" -> ela escolhe: a cena certa
+  compreensão: "o gato vê a barata" -> ela escolhe: a cena certa
+  compreensão: "a abelha vê o galo" -> ela escolhe: a cena certa
+  compreensão: "a cobra vê o elefante" -> ela escolhe: a cena certa
+  descrição: cena [galinha espirra ] -> "as galinhas gritam a borboleta está na casa" [errada]
+  descrição: cena [preguiça gosta salada] -> "a preguiça gosta das irmãs" [errada]
+  descrição: cena [onça está  em banheiro] -> "a onça está no banheiro" [certa]
+  descrição: cena [menina come pudim] -> "as meninas comem o pudim" [certa]
+  descrição: cena [macaco vê pudim] -> "o macaco vê o galo pudim" [errada]
+  descrição: cena [coruja come pizza] -> "a coruja come a pizza" [certa]
+  descrição: cena [irmã está  em zoológico] -> "as irmãs estão no zoológico" [certa]
+  descrição: cena [girafa come gelatina] -> "a girafa come a gelatina" [certa]
+  pergunta (onde, cena de 3 atrás): "cadê as professoras?" -> "a professora está no quintal" [certa] (verdade: quintal)
+  pergunta (quem, cena de 3 atrás): "quem come a uva?" -> "o urso come a uva" [certa] (verdade: urso)
+  pergunta (onde, cena de 3 atrás): "cadê o macaco?" -> "o macaco está no zoológico" [certa] (verdade: zoológico)
+  pergunta (quem, cena de 3 atrás): "quem vê os tomates?" -> "os tigres veem o tomate" [certa] (verdade: tigre)
+  pergunta (quem, cena de 3 atrás): "quem vê o macaco?" -> "" [errada] (verdade: amiga)
+  pergunta (quem, cena de 3 atrás): "quem come o pudim?" -> "a gata come o pudim" [certa] (verdade: gata)
+  pergunta (onde, cena de 3 atrás): "cadê os hipopótamos?" -> "o hipopótamo está na cozinha" [certa] (verdade: cozinha)
+  pergunta (quem, cena de 3 atrás): "quem come a uva?" -> "os galos comem a uva" [certa] (verdade: galo)
+  pergunta (o quê, cena de 3 atrás): "o que o gato vê?" -> "o gato vê o morango" [certa] (verdade: morango)
+  pergunta (onde, cena de 3 atrás): "cadê o macaco?" -> "o macaco está na garagem" [certa] (verdade: garagem)
+  pensando alto: "as médicas veem a girafa" [verdade: ela viu isso]
+  pensando alto: "a barata gosta da abelha" [verdade: ela viu isso]
+  pensando alto: "o gato está na casa" [verdade: ela viu isso]
+  pensando alto: "os jacarés comem o sanduíche" [verdade: ela viu isso]
+  pensando alto: "os galos gostam do palhaço" [verdade: ela viu isso]
+  pensando alto: "o lobo come o mel" [verdade: ela viu isso]
+
+infância de 10000 momentos (6735 cenas vistas, 6735 episódios na memória)
+1. compreensão ("o A vê o B": qual das duas cenas?), 200 testes com pares que ela nunca viu juntos:
+     com a ordem aprendida: 100%   | sem (papéis sorteados): 48%   | acaso: 50%
+2. descrição de cenas novas, 200 cenas: certa (gramatical, papéis na ordem certa)
+     com a ordem aprendida: 77% (gramatical 88%) | ordem sorteada: 26% (gramatical 78%)
+3. perguntas sobre a cena de 3 cenas atrás, 200 perguntas: certa (gramatical e com o fato certo)
+     com memória: 94% (fato certo 94%, gramatical 96%, silêncio 4%) | sem memória: 4% (fato 4%, gramatical 94%)
+     por tipo, com memória: onde 98% | o quê 93% | quem 74%
+4. pensando alto (4 min de silêncio): 18 falas, 94% gramaticais, 83% verdadeiras (descrevem algo que ela viu)

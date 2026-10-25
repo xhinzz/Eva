@@ -147,6 +147,78 @@ public:
     }
 
     const std::vector<Entry>& lexicon() const { return lex_; }
+
+    // ---------------------------------------------------------------- cenas
+    // Uma coisa que acontece na casa e que a criança vê: quem (agente), o quê
+    // (ação), com o quê (alvo), onde (lugar). Quem cuida dela descreve a cena,
+    // às vezes pergunta sobre ela e responde ("cadê o gato? o gato está na sala").
+    enum Kind { AT, EAT, SEE, LIKE, INTRANS };
+    struct Event {
+        Kind kind = AT;
+        std::string agent, action, patient, place;  // lemas (singular); ação = forma singular do verbo
+        char an = 's', pn = 's';                    // número do agente e do alvo
+    };
+    Event random_event() {
+        Event e;
+        std::discrete_distribution<int> k({3, 3, 2, 2, 2});
+        e.kind = static_cast<Kind>(k(rng_));
+        e.agent = pick_lemma(NOUN, ANIM);
+        e.place = pick_lemma(NOUN, PLACE);
+        std::uniform_real_distribution<double> u(0, 1);
+        e.an = u(rng_) < 0.7 ? 's' : 'p';
+        e.pn = u(rng_) < 0.7 ? 's' : 'p';
+        switch (e.kind) {
+            case AT: e.action = "está"; break;
+            case EAT: e.action = "come"; e.patient = pick_lemma(NOUN, FOOD); break;
+            case SEE: e.action = "vê"; do { e.patient = pick_lemma(NOUN, THING); } while (e.patient == e.agent); break;
+            case LIKE: e.action = "gosta"; do { e.patient = pick_lemma(NOUN, THING); } while (e.patient == e.agent); break;
+            case INTRANS: e.action = pick_lemma(VI, 0); break;
+        }
+        if (!has_form(e.patient, e.pn)) e.pn = 's';
+        if (!has_form(e.agent, e.an)) e.an = 's';
+        return e;
+    }
+    // a frase que descreve a cena
+    std::vector<std::string> describe(const Event& e) const {
+        std::vector<std::string> s = np(e.agent, e.an);
+        switch (e.kind) {
+            case AT: s.push_back(verb_form(EST, "está", e.an)); s.push_back(loc(e.place)); s.push_back(e.place); break;
+            case EAT: s.push_back(verb_form(COME, "come", e.an)); { auto o = np(e.patient, e.pn); s.insert(s.end(), o.begin(), o.end()); } break;
+            case SEE: s.push_back(verb_form(VE, "vê", e.an)); { auto o = np(e.patient, e.pn); s.insert(s.end(), o.begin(), o.end()); } break;
+            case LIKE: s.push_back(verb_form(GOSTA, "gosta", e.an)); s.push_back(de(e.patient, e.pn)); s.push_back(noun_form(e.patient, e.pn)); break;
+            case INTRANS: s.push_back(verb_form(VI, e.action, e.an)); break;
+        }
+        return s;
+    }
+    // pergunta sobre a cena: 0 = onde (cadê), 1 = o quê (o que ... come/vê), 2 = quem (quem come/vê ...)
+    bool can_ask(const Event& e, int field) const {
+        if (field == 0) return true;
+        return e.kind == EAT || e.kind == SEE;
+    }
+    std::vector<std::string> question(const Event& e, int field) const {
+        if (field == 0) { auto s = np(e.agent, e.an); s.insert(s.begin(), "cadê"); return s; }
+        const Pos vp = e.kind == EAT ? COME : VE;
+        if (field == 1) { std::vector<std::string> s{"o", "que"}; auto a = np(e.agent, e.an); s.insert(s.end(), a.begin(), a.end()); s.push_back(verb_form(vp, e.action, e.an)); return s; }
+        std::vector<std::string> s{"quem", verb_form(vp, e.action, 's')};
+        auto o = np(e.patient, e.pn);
+        s.insert(s.end(), o.begin(), o.end());
+        return s;
+    }
+    std::vector<std::string> answer(const Event& e, int field) const {
+        if (field == 0) { Event at = e; at.kind = AT; return describe(at); }
+        return describe(e);
+    }
+    // o lema de uma palavra ("gatos" -> "gato"), para conferir respostas
+    std::string lemma_of(const std::string& w) const {
+        auto it = by_word_.find(w);
+        if (it == by_word_.end()) return w;
+        const Entry& e = lex_[it->second.front()];
+        return e.lemma.empty() ? w : e.lemma;
+    }
+    int lex_pos(const std::string& w) const {
+        auto it = by_word_.find(w);
+        return it == by_word_.end() ? -1 : static_cast<int>(lex_[it->second.front()].pos);
+    }
     const std::set<std::string>& held() const { return held_; }
     size_t vocabulary_size() const { return by_word_.size(); }
     // classe "verdadeira" de uma palavra (para medir se as categorias que emergem batem)
@@ -171,6 +243,38 @@ public:
     }
 
 private:
+    std::string pick_lemma(Pos pos, int sem) {
+        std::vector<int> ids; std::vector<double> w;
+        for (int i = 0; i < static_cast<int>(lex_.size()); ++i) {
+            const Entry& e = lex_[i];
+            if (e.pos != pos || e.n == 'p') continue;
+            if (sem && !(e.sem & sem)) continue;
+            ids.push_back(i); w.push_back(weight_[i]);
+        }
+        std::discrete_distribution<size_t> pick(w.begin(), w.end());
+        return lex_[ids[pick(rng_)]].lemma;
+    }
+    const Entry* noun_entry(const std::string& lemma, char n) const {
+        for (const auto& e : lex_) if (e.pos == NOUN && e.lemma == lemma && e.n == n) return &e;
+        return nullptr;
+    }
+    bool has_form(const std::string& lemma, char n) const { return lemma.empty() || noun_entry(lemma, n) != nullptr; }
+    std::string noun_form(const std::string& lemma, char n) const { const Entry* e = noun_entry(lemma, n); return e ? e->word : lemma; }
+    char gender(const std::string& lemma) const { const Entry* e = noun_entry(lemma, 's'); return e ? e->g : 'm'; }
+    std::vector<std::string> np(const std::string& lemma, char n) const {
+        const char g = gender(lemma);
+        const char* det = g == 'm' ? (n == 's' ? "o" : "os") : (n == 's' ? "a" : "as");
+        return {det, noun_form(lemma, n)};
+    }
+    std::string verb_form(Pos pos, const std::string& lemma, char n) const {
+        for (const auto& e : lex_) if (e.pos == pos && e.lemma == lemma && e.n == n) return e.word;
+        return lemma;
+    }
+    std::string loc(const std::string& place) const { return gender(place) == 'm' ? "no" : "na"; }
+    std::string de(const std::string& lemma, char n) const {
+        const char g = gender(lemma);
+        return g == 'm' ? (n == 's' ? "do" : "dos") : (n == 's' ? "da" : "das");
+    }
     static int score(const Check& c) { return c.syntax + c.agreement + c.semantics; }
 
     bool fits(const Entry& e, const Slot& sl, const char* g, const char* n, bool agree, bool sem, bool for_generation) const {
@@ -336,7 +440,7 @@ private:
         lex_.push_back({"no", LOC, 'm', 's'}); lex_.push_back({"na", LOC, 'f', 's'});
         lex_.push_back({"do", DE, 'm', 's'}); lex_.push_back({"da", DE, 'f', 's'});
         lex_.push_back({"dos", DE, 'm', 'p'}); lex_.push_back({"das", DE, 'f', 'p'});
-        for (auto s : split("eu você vejo gosto quero cadê olha vamos muito de")) lit(s);
+        for (auto s : split("eu você vejo gosto quero cadê olha vamos muito de que quem")) lit(s);
         // "quer" também é literal em "você quer"; já está como QUER singular
     }
 
