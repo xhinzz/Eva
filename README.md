@@ -1,4 +1,4 @@
-# Eva
+# Eva 2
 
 Um cérebro simulado em C++, inspirado na biologia, feito para conversar de verdade: sem modelo de linguagem, sem moldes de texto. Tudo que ela diz emerge do que ela viveu e do que está sentindo.
 
