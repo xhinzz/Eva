@@ -11,3 +11,5 @@ Todas geradas pela Eva (PPM convertido para PNG, ampliado sem suavização).
 | `ground_imagina.png` | só pela palavra ouvida, depois de 4 voltas pela casa: cama, janela, mesa, café, flor, árvore, mar, areia, sol, barco |
 | `demo_imagina.png` | da demonstração: "mar", "flor", "cama", "pão" e "flor mar" (que ela nunca viu junto) |
 | `gramatica_curva.png` | curva de aprendizado da gramática (dados de `logs/grammar.txt`): sujeitos retidos e conhecidos, com e sem a gramática |
+| `olhos_coisas.png` | cenas pelos olhos: 12 das 202 coisas da casa como os olhos dela recebem (cada uma com forma, cores e marcas próprias) |
+| `olhos_vistas.png` | o mesmo gato visto seis vezes (posição e tom mudam) e quatro lugares (fundos) |

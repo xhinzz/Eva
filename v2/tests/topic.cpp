@@ -44,6 +44,7 @@ int main(int argc, char** argv) {
         c.memory_file = cache.empty() ? "/dev/null" : cache;
         if (!getenv("ECO")) c.imitate_above = 2.0f;  // nunca imita: mede o que ela produz
         if (getenv("GAIN")) c.topic_gain = atof(getenv("GAIN"));
+        if (getenv("SHARP")) c.topic_sharp = atof(getenv("SHARP"));
         return c;
     };
     corpus::Grammar home(7);

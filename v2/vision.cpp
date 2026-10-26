@@ -5,10 +5,13 @@
 #include <cstdlib>
 #include <cmath>
 #include <fstream>
+#include <unordered_map>
 #include <istream>
 #include <ostream>
 
 namespace eva2 {
+
+static constexpr int kZones = 9;  // setores da caixa da coisa na descrição invariante
 
 // ---------------------------------------------------------------- utilidades
 
@@ -96,6 +99,14 @@ void VisualCortex::prime(const std::vector<Image>& samples) {
         normalize(v2_[k]);
         for (size_t i = 0; i < v2_gen_[k].size(); ++i) v2_gen_[k][i] = img.px[i];
     }
+    // estatística das respostas densas nas coisas da infância dos olhos
+    const int D = (1 + kZones) * cfg_.v1_units;
+    dense_mu_.assign(D, 0.0f); dense_sd_.assign(D, 0.0f);
+    for (const auto& img : samples) { auto d = dense_raw(img); for (int u = 0; u < D; ++u) { dense_mu_[u] += d[u]; dense_sd_[u] += d[u] * d[u]; } }
+    for (int u = 0; u < D; ++u) {
+        dense_mu_[u] /= samples.size();
+        dense_sd_[u] = std::sqrt(std::max(1e-6f, dense_sd_[u] / samples.size() - dense_mu_[u] * dense_mu_[u]));
+    }
 }
 
 // Traços agrupados por quadrante: "há um traço de borda azul em cima à esquerda",
@@ -111,6 +122,70 @@ std::vector<float> VisualCortex::pooled(const VisualCode& c) const {
             for (auto& [unit, coef] : c.v1_codes[idx]) if (coef > 0.05f) vec[q * cfg_.v1_units + unit] = 1.0f;
         }
     return vec;
+}
+
+std::vector<float> VisualCortex::invariant_dense(const Image& img) const {
+    std::vector<float> v = dense_raw(img);
+    if (dense_mu_.size() == v.size())
+        for (size_t u = 0; u < v.size(); ++u) v[u] = (v[u] - dense_mu_[u]) / dense_sd_[u];
+    return v;
+}
+
+// Descrição invariante a posição e a tamanho: para cada traço de V1, a resposta
+// máxima dele na imagem inteira e em cada um de 3x3 setores da caixa que contém
+// a coisa (o que difere do fundo). O máximo dá invariância a deslocamento; os
+// setores da caixa guardam a forma (o canto vazio do losango, a cabeça em cima,
+// a base embaixo) sem depender de onde a coisa está nem do tamanho dela.
+std::vector<float> VisualCortex::dense_raw(const Image& img) const {
+    const int U = cfg_.v1_units;
+    std::vector<float> v((1 + kZones) * U, 0.0f), p(kPatchDim);
+    int x0b = kImg, y0b = kImg, x1b = -1, y1b = -1;
+    const float r0 = img.at(0, 0, 0), g0 = img.at(0, 0, 1), b0 = img.at(0, 0, 2);
+    for (int y = 0; y < kImg; ++y)
+        for (int x = 0; x < kImg; ++x) {
+            const float d = std::fabs(img.at(x, y, 0) - r0) + std::fabs(img.at(x, y, 1) - g0) + std::fabs(img.at(x, y, 2) - b0);
+            if (d > 0.15f) { x0b = std::min(x0b, x); y0b = std::min(y0b, y); x1b = std::max(x1b, x); y1b = std::max(y1b, y); }
+        }
+    if (x1b < 0) { x0b = y0b = 0; x1b = y1b = kImg - 1; }
+    const float w = static_cast<float>(x1b - x0b + 1), h = static_cast<float>(y1b - y0b + 1);
+    for (int y0 = 0; y0 + kPatch <= kImg; ++y0)
+        for (int x0 = 0; x0 + kPatch <= kImg; ++x0) {
+            int i = 0;
+            for (int y = 0; y < kPatch; ++y)
+                for (int x = 0; x < kPatch; ++x)
+                    for (int c = 0; c < 3; ++c) p[i++] = img.at(x0 + x, y0 + y, c);
+            float n = 0.0f; for (float x : p) n += x * x;
+            n = std::sqrt(n) + 1e-6f;
+            const float px = x0 + kPatch / 2.0f, py = y0 + kPatch / 2.0f;
+            const int zx = std::clamp(static_cast<int>(3.0f * (px - x0b) / w), 0, 2);
+            const int zy = std::clamp(static_cast<int>(3.0f * (py - y0b) / h), 0, 2);
+            const int q = 1 + zy * 3 + zx;
+            for (int u = 0; u < U; ++u) {
+                float d = 0.0f;
+                const auto& wv = v1_[u];
+                for (int k = 0; k < kPatchDim; ++k) d += wv[k] * p[k];
+                d /= n;
+                v[u] = std::max(v[u], d);
+                v[q * U + u] = std::max(v[q * U + u], d);
+            }
+        }
+    return v;
+}
+
+std::vector<float> VisualCortex::invariant(const VisualCode& c) const {
+    std::vector<float> v(cfg_.v1_units, 0.0f);
+    for (const auto& patch : c.v1_codes)
+        for (const auto& [unit, coef] : patch) if (coef > 0.05f) v[unit] += 1.0f;
+    float norm = 0.0f;
+    for (int u = 0; u < cfg_.v1_units; ++u) {
+        float common = 0.0f;
+        for (int q = 0; q < 4; ++q) common += in_mean_[q * cfg_.v1_units + u] / 4.0f;  // quanto este traço está em toda parte
+        v[u] = std::sqrt(v[u]) / (0.1f + common);
+        norm += v[u] * v[u];
+    }
+    norm = std::sqrt(norm);
+    if (norm > 0) for (float& x : v) x /= norm;
+    return v;
 }
 
 // ---------------------------------------------------------------- ver (subir)
@@ -272,6 +347,10 @@ void VisualCortex::save(std::ostream& out) const {
     out.write(reinterpret_cast<const char*>(in_mean_.data()), in_mean_.size() * sizeof(float));
     out.write(reinterpret_cast<const char*>(v1_use_.data()), v1_use_.size() * sizeof(float));
     out.write(reinterpret_cast<const char*>(v2_use_.data()), v2_use_.size() * sizeof(float));
+    const uint32_t nd = static_cast<uint32_t>(dense_mu_.size());
+    out.write(reinterpret_cast<const char*>(&nd), sizeof nd);
+    out.write(reinterpret_cast<const char*>(dense_mu_.data()), nd * sizeof(float));
+    out.write(reinterpret_cast<const char*>(dense_sd_.data()), nd * sizeof(float));
 }
 
 bool VisualCortex::load(std::istream& in) {
@@ -288,6 +367,12 @@ bool VisualCortex::load(std::istream& in) {
     v1_use_.resize(v1_.size()); v2_use_.resize(v2_.size()); v2_duty_.assign(v2_.size(), duty_target_);
     in.read(reinterpret_cast<char*>(v1_use_.data()), v1_use_.size() * sizeof(float));
     in.read(reinterpret_cast<char*>(v2_use_.data()), v2_use_.size() * sizeof(float));
+    uint32_t nd = 0;
+    in.read(reinterpret_cast<char*>(&nd), sizeof nd);
+    if (nd > 100000) return false;
+    dense_mu_.resize(nd); dense_sd_.resize(nd);
+    in.read(reinterpret_cast<char*>(dense_mu_.data()), nd * sizeof(float));
+    in.read(reinterpret_cast<char*>(dense_sd_.data()), nd * sizeof(float));
     cfg_.v1_units = static_cast<int>(v1_.size());
     cfg_.v2_units = static_cast<int>(v2_.size());
     return static_cast<bool>(in);
@@ -403,6 +488,116 @@ Image draw_place(const std::string& place, std::mt19937& rng, float variation) {
     else if (place == "jardim") { p.rect(0, 0, 31, 14, 0.55f, 0.75f, 0.95f); p.rect(0, 15, 31, 31, 0.2f, 0.6f + t, 0.2f); }
     else if (place == "cozinha") { p.fill(0.95f, 0.9f + t * 0.1f, 0.75f); p.rect(0, 22, 31, 31, 0.6f, 0.5f, 0.4f); }
     else { p.fill(0.85f, 0.8f + t * 0.1f, 0.9f); p.rect(0, 24, 31, 31, 0.5f, 0.4f, 0.3f); }
+    return img;
+}
+
+// ---------------------------------------------------------------- desenhos de tudo
+// Cada bicho, pessoa, comida e coisa do vocabulário ganha uma aparência própria,
+// sorteada uma vez a partir do nome (forma, cor, um detalhe, tamanho), e vista
+// cada vez um pouco diferente (posição, tom, tamanho). Não são desenhos
+// realistas: são aparências distintas e estáveis, que é o que os olhos precisam
+// para formar um conceito ("aquela coisa redonda laranja de pintas").
+
+static uint64_t name_hash(const std::string& s) {
+    uint64_t h = 1469598103934665603ull;
+    for (unsigned char c : s) { h ^= c; h *= 1099511628211ull; }
+    h ^= h >> 33; h *= 0xff51afd7ed558ccdull; h ^= h >> 33;
+    return h;
+}
+static const float kPalette[12][3] = {
+    {0.85f, 0.15f, 0.15f}, {0.95f, 0.55f, 0.10f}, {0.95f, 0.85f, 0.15f}, {0.55f, 0.80f, 0.15f},
+    {0.10f, 0.60f, 0.25f}, {0.10f, 0.70f, 0.70f}, {0.15f, 0.45f, 0.90f}, {0.20f, 0.20f, 0.65f},
+    {0.55f, 0.25f, 0.75f}, {0.90f, 0.40f, 0.70f}, {0.50f, 0.30f, 0.15f}, {0.25f, 0.25f, 0.25f}};
+
+static std::unordered_map<std::string, int>& sprite_index() { static std::unordered_map<std::string, int> m; return m; }
+void set_sprite_names(const std::vector<std::string>& names) {
+    auto& m = sprite_index();
+    m.clear();
+    for (size_t i = 0; i < names.size(); ++i) m[names[i]] = static_cast<int>(i);
+}
+
+Image draw_sprite(const std::string& name, std::mt19937& rng, float variation) {
+    Image img;
+    Pen p{img, rng, variation};
+    // Aparência: se a lista de nomes foi dada, cada um ganha uma combinação única
+    // (as mais diferentes primeiro: muda a cor, depois a forma, depois a parte);
+    // senão, sorteada do nome.
+    uint64_t h = name_hash(name);
+    auto take = [&](int n) { const int v = static_cast<int>(h % n); h /= n; return v; };
+    int shape = take(8), color = take(12), big = take(2), part = take(8), pcolor = 0, detail = take(4);
+    pcolor = (color + 1 + take(11)) % 12;
+    auto it = sprite_index().find(name);
+    if (it != sprite_index().end()) {
+        const int k = it->second;
+        color = k % 12;
+        shape = (k / 12 + k) % 8;
+        part = (k / 96 + k / 12) % 8;
+        pcolor = (color + 3 + (k / 12) % 7) % 12;
+        big = (k / 24) % 2;
+        detail = (k / 48) % 4;
+    }
+    // corpo (forma, cor, tamanho) e uma segunda parte grande (cabeça, faixa, orelhas,
+    // base, aro, metade de outra cor, cauda), de outra cor, e um detalhe pequeno
+    std::uniform_int_distribution<int> off(-2, 2);
+    const int dx = variation > 0 ? off(rng) : 0, dy = variation > 0 ? off(rng) : 0;
+    const float t = p.jit() * 0.15f;
+    const int rad = big ? 8 : 6;
+    p.fill(0.93f + t * 0.05f, 0.93f + t * 0.05f, 0.91f);
+    const float r = kPalette[color][0] + t, g = kPalette[color][1] + t, b = kPalette[color][2] + t;
+    const float fr = kPalette[pcolor][0], fg = kPalette[pcolor][1], fb = kPalette[pcolor][2];
+    const int cx = 16 + dx, cy = 17 + dy;
+    if (part == 5) p.disc(cx, cy, rad + 3, fr, fg, fb);  // aro atrás do corpo
+    switch (shape) {
+        case 0: p.disc(cx, cy, rad, r, g, b); break;
+        case 1: p.rect(cx - rad, cy - rad, cx + rad, cy + rad, r, g, b); break;
+        case 2: p.tri(cx, cy + rad, 2 * rad + 2, 2 * rad, r, g, b); break;
+        case 3: for (int y = -rad / 2; y <= rad / 2; ++y) for (int x = -rad - 3; x <= rad + 3; ++x) if (x * x * 4 + y * y * 4 * 6 <= (rad + 3) * (rad + 3) * 4) p.set(cx + x, cy + y, r, g, b); break;
+        case 4: for (int y = -rad - 3; y <= rad + 3; ++y) for (int x = -rad / 2; x <= rad / 2; ++x) if (y * y * 4 + x * x * 4 * 6 <= (rad + 3) * (rad + 3) * 4) p.set(cx + x, cy + y, r, g, b); break;
+        case 5: p.disc(cx, cy, rad, r, g, b); p.disc(cx, cy, rad / 2, 0.93f, 0.93f, 0.91f); break;
+        case 6: p.rect(cx - rad, cy - 2, cx + rad, cy + 2, r, g, b); p.rect(cx - 2, cy - rad, cx + 2, cy + rad, r, g, b); break;
+        default: for (int y = -rad; y <= rad; ++y) for (int x = -rad; x <= rad; ++x) if (std::abs(x) + std::abs(y) <= rad) p.set(cx + x, cy + y, r, g, b); break;
+    }
+    switch (part) {
+        case 1: p.disc(cx, cy - rad - 3, 4, fr, fg, fb); break;                                            // cabeça
+        case 2: p.rect(cx - rad - 1, cy - 2, cx + rad + 1, cy + 2, fr, fg, fb); break;                     // faixa larga
+        case 3: p.tri(cx - rad + 2, cy - rad + 1, 6, 6, fr, fg, fb); p.tri(cx + rad - 2, cy - rad + 1, 6, 6, fr, fg, fb); break;  // orelhas
+        case 4: p.rect(cx - rad - 3, cy + rad, cx + rad + 3, cy + rad + 3, fr, fg, fb); break;             // base
+        case 6: for (int y = cy - rad; y <= cy + rad; ++y) for (int x = cx; x <= cx + rad; ++x)            // metade de outra cor
+                    if (img.at(std::clamp(x, 0, kImg - 1), std::clamp(y, 0, kImg - 1), 0) == std::clamp(r, 0.0f, 1.0f)) p.set(x, y, fr, fg, fb);
+                break;
+        case 7: p.rect(cx + rad, cy, cx + rad + 6, cy + 2, fr, fg, fb); p.rect(cx + rad + 5, cy - 4, cx + rad + 6, cy + 2, fr, fg, fb); break;  // cauda
+        default: break;
+    }
+    switch (detail) {
+        case 1: p.disc(cx - rad / 3, cy - rad / 3, 1, 0.05f, 0.05f, 0.05f); p.disc(cx + rad / 3, cy - rad / 3, 1, 0.05f, 0.05f, 0.05f); break;  // olhos
+        case 2: p.disc(cx - rad / 2, cy + 1, 1, 1.0f, 1.0f, 1.0f); p.disc(cx + rad / 2, cy + 2, 1, 1.0f, 1.0f, 1.0f); p.disc(cx, cy + rad / 2, 1, 1.0f, 1.0f, 1.0f); break;  // pintas
+        case 3: p.rect(cx - 1, cy - rad, cx + 1, cy + rad, 0.15f, 0.15f, 0.15f); break;                    // risco
+        default: break;
+    }
+    return img;
+}
+
+// Um lugar visto: cor de fundo e um padrão (faixas, listras, xadrez, chão, bolinhas, diagonais)
+Image draw_backdrop(const std::string& place, std::mt19937& rng, float variation) {
+    Image img;
+    Pen p{img, rng, variation};
+    uint64_t h = name_hash("lugar:" + place);
+    auto take = [&](int n) { const int v = static_cast<int>(h % n); h /= n; return v; };
+    const int base = take(12), pattern = take(6), second = (base + 3 + take(8)) % 12;
+    const float t = p.jit() * 0.2f;
+    auto light = [&](int c, int k) { return 0.45f + 0.5f * kPalette[c][k] + t; };
+    p.fill(light(base, 0), light(base, 1), light(base, 2));
+    const float sr = kPalette[second][0], sg = kPalette[second][1], sb = kPalette[second][2];
+    std::uniform_int_distribution<int> off(0, 3);
+    const int o = variation > 0 ? off(rng) : 0;
+    switch (pattern) {
+        case 0: for (int y = o; y < kImg; y += 8) p.rect(0, y, 31, y + 2, sr, sg, sb); break;
+        case 1: for (int x = o; x < kImg; x += 8) p.rect(x, 0, x + 2, 31, sr, sg, sb); break;
+        case 2: for (int y = 0; y < kImg; ++y) for (int x = 0; x < kImg; ++x) if (((x + o) / 6 + (y + o) / 6) % 2) p.set(x, y, sr, sg, sb); break;
+        case 3: p.rect(0, 20 + o, 31, 31, sr, sg, sb); break;
+        case 4: for (int y = 3 + o; y < kImg; y += 7) for (int x = 3 + o; x < kImg; x += 7) p.disc(x, y, 1, sr, sg, sb); break;
+        default: for (int y = 0; y < kImg; ++y) for (int x = 0; x < kImg; ++x) if (((x + y + o) / 4) % 3 == 0) p.set(x, y, sr, sg, sb); break;
+    }
     return img;
 }
 

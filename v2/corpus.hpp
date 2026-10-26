@@ -42,6 +42,7 @@ struct Entry {
     int sem = 0;
     std::string lemma;
     bool held = false;  // retido: só como objeto
+    char tense = '*';   // verbos: p (presente), a (passado)
 };
 
 // Uma posição de um molde de frase
@@ -179,14 +180,15 @@ public:
         return e;
     }
     // a frase que descreve a cena
-    std::vector<std::string> describe(const Event& e) const {
+    // (past: contando depois o que aconteceu: "o gato comeu o peixe")
+    std::vector<std::string> describe(const Event& e, bool past = false) const {
         std::vector<std::string> s = np(e.agent, e.an);
         switch (e.kind) {
-            case AT: s.push_back(verb_form(EST, "está", e.an)); s.push_back(loc(e.place)); s.push_back(e.place); break;
-            case EAT: s.push_back(verb_form(COME, "come", e.an)); { auto o = np(e.patient, e.pn); s.insert(s.end(), o.begin(), o.end()); } break;
-            case SEE: s.push_back(verb_form(VE, "vê", e.an)); { auto o = np(e.patient, e.pn); s.insert(s.end(), o.begin(), o.end()); } break;
-            case LIKE: s.push_back(verb_form(GOSTA, "gosta", e.an)); s.push_back(de(e.patient, e.pn)); s.push_back(noun_form(e.patient, e.pn)); break;
-            case INTRANS: s.push_back(verb_form(VI, e.action, e.an)); break;
+            case AT: s.push_back(verb_form(EST, "está", e.an, past)); s.push_back(loc(e.place)); s.push_back(e.place); break;
+            case EAT: s.push_back(verb_form(COME, "come", e.an, past)); { auto o = np(e.patient, e.pn); s.insert(s.end(), o.begin(), o.end()); } break;
+            case SEE: s.push_back(verb_form(VE, "vê", e.an, past)); { auto o = np(e.patient, e.pn); s.insert(s.end(), o.begin(), o.end()); } break;
+            case LIKE: s.push_back(verb_form(GOSTA, "gosta", e.an, past)); s.push_back(de(e.patient, e.pn)); s.push_back(noun_form(e.patient, e.pn)); break;
+            case INTRANS: s.push_back(verb_form(VI, e.action, e.an, past)); break;
         }
         return s;
     }
@@ -195,18 +197,29 @@ public:
         if (field == 0) return true;
         return e.kind == EAT || e.kind == SEE;
     }
-    std::vector<std::string> question(const Event& e, int field) const {
+    // (past: sobre algo que já passou: "o que o gato comeu?"; "cadê" é sempre agora)
+    std::vector<std::string> question(const Event& e, int field, bool past = false) const {
         if (field == 0) { auto s = np(e.agent, e.an); s.insert(s.begin(), "cadê"); return s; }
         const Pos vp = e.kind == EAT ? COME : VE;
-        if (field == 1) { std::vector<std::string> s{"o", "que"}; auto a = np(e.agent, e.an); s.insert(s.end(), a.begin(), a.end()); s.push_back(verb_form(vp, e.action, e.an)); return s; }
-        std::vector<std::string> s{"quem", verb_form(vp, e.action, 's')};
+        if (field == 1) { std::vector<std::string> s{"o", "que"}; auto a = np(e.agent, e.an); s.insert(s.end(), a.begin(), a.end()); s.push_back(verb_form(vp, e.action, e.an, past)); return s; }
+        std::vector<std::string> s{"quem", verb_form(vp, e.action, 's', past)};
         auto o = np(e.patient, e.pn);
         s.insert(s.end(), o.begin(), o.end());
         return s;
     }
-    std::vector<std::string> answer(const Event& e, int field) const {
+    std::vector<std::string> answer(const Event& e, int field, bool past = false) const {
         if (field == 0) { Event at = e; at.kind = AT; return describe(at); }
-        return describe(e);
+        return describe(e, past);
+    }
+    char tense_of(const std::string& w) const {
+        auto it = by_word_.find(w);
+        if (it == by_word_.end()) return '*';
+        for (int i : it->second) if (lex_[i].tense != '*') return lex_[i].tense;
+        return '*';
+    }
+    char number_of(const std::string& w) const {
+        auto it = by_word_.find(w);
+        return it == by_word_.end() ? '*' : lex_[it->second.front()].n;
     }
     // o lema de uma palavra ("gatos" -> "gato"), para conferir respostas
     std::string lemma_of(const std::string& w) const {
@@ -247,7 +260,7 @@ private:
         std::vector<int> ids; std::vector<double> w;
         for (int i = 0; i < static_cast<int>(lex_.size()); ++i) {
             const Entry& e = lex_[i];
-            if (e.pos != pos || e.n == 'p') continue;
+            if (e.pos != pos || e.n == 'p' || e.tense == 'a') continue;
             if (sem && !(e.sem & sem)) continue;
             ids.push_back(i); w.push_back(weight_[i]);
         }
@@ -266,7 +279,9 @@ private:
         const char* det = g == 'm' ? (n == 's' ? "o" : "os") : (n == 's' ? "a" : "as");
         return {det, noun_form(lemma, n)};
     }
-    std::string verb_form(Pos pos, const std::string& lemma, char n) const {
+    std::string verb_form(Pos pos, const std::string& lemma, char n, bool past = false) const {
+        const char t = past ? 'a' : 'p';
+        for (const auto& e : lex_) if (e.pos == pos && e.lemma == lemma && e.n == n && e.tense == t) return e.word;
         for (const auto& e : lex_) if (e.pos == pos && e.lemma == lemma && e.n == n) return e.word;
         return lemma;
     }
@@ -328,6 +343,7 @@ private:
                     const Entry& e = lex_[k];
                     if (!fits(e, sl, g, n, true, true, true)) continue;
                     if (p.predicative && e.held) continue;
+                    if (e.tense == 'a') continue;  // a fala comum da casa é no presente; o passado vem nas lembranças
                     ids.push_back(k);
                     w.push_back(weight_[k]);
                 }
@@ -373,9 +389,13 @@ private:
             lex_.push_back({pl, ADJ, '*', 'p', 0, base});
         }
     }
-    void add_verb(Pos pos, const std::string& sg, const std::string& pl) {
-        lex_.push_back({sg, pos, '*', 's', 0, sg});
-        lex_.push_back({pl, pos, '*', 'p', 0, sg});
+    void add_verb(Pos pos, const std::string& sg, const std::string& pl, const std::string& past_sg = "", const std::string& past_pl = "") {
+        Entry a{sg, pos, '*', 's', 0, sg}; a.tense = 'p'; lex_.push_back(a);
+        Entry b{pl, pos, '*', 'p', 0, sg}; b.tense = 'p'; lex_.push_back(b);
+        if (!past_sg.empty()) {
+            Entry c{past_sg, pos, '*', 's', 0, sg}; c.tense = 'a'; lex_.push_back(c);
+            Entry d{past_pl, pos, '*', 'p', 0, sg}; d.tense = 'a'; lex_.push_back(d);
+        }
     }
     void lit(const std::string& w) { lex_.push_back({w, LIT, '*', '*', 0, w}); }
 
@@ -418,22 +438,30 @@ private:
                             "gentil/gentis veloz/velozes inteligente valente elegante"))
             add_adj(s);
 
-        const char* vi[][2] = {{"corre", "correm"}, {"dorme", "dormem"}, {"pula", "pulam"}, {"brinca", "brincam"}, {"chora", "choram"},
-                               {"ri", "riem"}, {"canta", "cantam"}, {"dança", "dançam"}, {"nada", "nadam"}, {"voa", "voam"},
-                               {"anda", "andam"}, {"mia", "miam"}, {"late", "latem"}, {"sorri", "sorriem"}, {"acorda", "acordam"},
-                               {"grita", "gritam"}, {"cai", "caem"}, {"senta", "sentam"}, {"sobe", "sobem"}, {"desce", "descem"},
-                               {"chega", "chegam"}, {"sai", "saem"}, {"volta", "voltam"}, {"espirra", "espirram"}, {"tosse", "tossem"},
-                               {"rola", "rolam"}};
-        for (auto& v : vi) add_verb(VI, v[0], v[1]);
+        // presente singular, presente plural, passado singular, passado plural
+        const char* vi[][4] = {{"corre", "correm", "correu", "correram"}, {"dorme", "dormem", "dormiu", "dormiram"},
+                               {"pula", "pulam", "pulou", "pularam"}, {"brinca", "brincam", "brincou", "brincaram"},
+                               {"chora", "choram", "chorou", "choraram"}, {"ri", "riem", "riu", "riram"},
+                               {"canta", "cantam", "cantou", "cantaram"}, {"dança", "dançam", "dançou", "dançaram"},
+                               {"nada", "nadam", "nadou", "nadaram"}, {"voa", "voam", "voou", "voaram"},
+                               {"anda", "andam", "andou", "andaram"}, {"mia", "miam", "miou", "miaram"},
+                               {"late", "latem", "latiu", "latiram"}, {"sorri", "sorriem", "sorriu", "sorriram"},
+                               {"acorda", "acordam", "acordou", "acordaram"}, {"grita", "gritam", "gritou", "gritaram"},
+                               {"cai", "caem", "caiu", "caíram"}, {"senta", "sentam", "sentou", "sentaram"},
+                               {"sobe", "sobem", "subiu", "subiram"}, {"desce", "descem", "desceu", "desceram"},
+                               {"chega", "chegam", "chegou", "chegaram"}, {"sai", "saem", "saiu", "saíram"},
+                               {"volta", "voltam", "voltou", "voltaram"}, {"espirra", "espirram", "espirrou", "espirraram"},
+                               {"tosse", "tossem", "tossiu", "tossiram"}, {"rola", "rolam", "rolou", "rolaram"}};
+        for (auto& v : vi) add_verb(VI, v[0], v[1], v[2], v[3]);
         for (auto s : split("brincar comer dormir passear nadar correr desenhar pintar cantar dançar ler pular jogar cozinhar andar "
                             "sair voltar olhar contar escrever arrumar lavar beber subir descer esconder procurar assistir viajar"))
             lex_.push_back({s, VINF, '*', '*', 0, s});
-        add_verb(COME, "come", "comem");
-        add_verb(GOSTA, "gosta", "gostam");
+        add_verb(COME, "come", "comem", "comeu", "comeram");
+        add_verb(GOSTA, "gosta", "gostam", "gostou", "gostaram");
         add_verb(QUER, "quer", "querem");
-        add_verb(VE, "vê", "veem");
+        add_verb(VE, "vê", "veem", "viu", "viram");
         add_verb(COP, "é", "são");
-        add_verb(EST, "está", "estão");
+        add_verb(EST, "está", "estão", "estava", "estavam");
         lex_.push_back({"o", DET, 'm', 's'}); lex_.push_back({"a", DET, 'f', 's'});
         lex_.push_back({"os", DET, 'm', 'p'}); lex_.push_back({"as", DET, 'f', 'p'});
         lex_.push_back({"um", INDEF, 'm', 's'}); lex_.push_back({"uma", INDEF, 'f', 's'});

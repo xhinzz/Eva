@@ -1,0 +1,47 @@
+ordem aprendida (posição média entre as palavras com sentido, 0 = primeira):  quem faz 0.67  ação 1.41  alvo 2.67  lugar 0.95
+o que cada palavra de pergunta pede:  'cadê' -> lugar (98%)  'que' -> alvo (63%)  'quem' -> quem faz (59%)  'o' -> lugar (56%)
+  compreensão: "o boi vê o leão" -> ela escolhe: a cena trocada
+  compreensão: "o gato vê a barata" -> ela escolhe: a cena certa
+  compreensão: "a abelha vê o galo" -> ela escolhe: a cena certa
+  compreensão: "o menino vê a amiga" -> ela escolhe: a cena certa
+  descrição: cena [galinha espirra ] -> "a espirra" [errada]
+  descrição: cena [preguiça gosta salada] -> "cadê as médicas" [errada]
+  descrição: cena [onça está  em banheiro] -> "a goiaba está na escola" [errada]
+  descrição: cena [menina come pudim] -> "o menina come o pudim" [errada]
+  descrição: cena [macaco vê pudim] -> "o tigre gosta das almofadas" [errada]
+  descrição: cena [coruja come pizza] -> "a pata come as pizzas" [errada]
+  descrição: cena [irmã está  em zoológico] -> "a zoológico" [errada]
+  descrição: cena [girafa come gelatina] -> "a girafa come o pão" [errada]
+  pergunta (onde, cena de 3 atrás): "cadê as professoras?" -> "as professoras comem as galinhas estão" [errada] (verdade: quintal)
+  pergunta no passado: "o que o urso comeu?" -> ""
+  pergunta (o quê, cena de 3 atrás): "o que o urso comeu?" -> "" [errada] (verdade: uva)
+  pergunta (onde, cena de 3 atrás): "cadê o macaco?" -> "o macaco come a sopa" [errada] (verdade: zoológico)
+  pergunta no passado: "o que o tigre viu?" -> ""
+  pergunta (o quê, cena de 3 atrás): "o que o tigre viu?" -> "" [errada] (verdade: tomate)
+  pergunta (quem, cena de 3 atrás): "quem vê o macaco?" -> "" [errada] (verdade: amiga)
+  pergunta (onde, cena de 3 atrás): "cadê a gata?" -> "a gata come o pudim" [errada] (verdade: fazenda)
+  pergunta (o quê, cena de 3 atrás): "o que os hipopótamos veem?" -> "" [errada] (verdade: amiga)
+  pergunta no passado: "o que o galo comeu?" -> ""
+  pergunta (o quê, cena de 3 atrás): "o que o galo comeu?" -> "" [errada] (verdade: uva)
+  pergunta (quem, cena de 3 atrás): "quem vê o morango?" -> "" [errada] (verdade: gato)
+  pergunta (onde, cena de 3 atrás): "cadê o macaco?" -> "o macaco está na garagem" [certa] (verdade: garagem)
+  pergunta no passado: "o que a borboleta comeu?" -> ""
+  pensando alto: "a barata está na casa" [gramatical, mas não aconteceu assim]
+  pensando alto: "as goiabas gostaram a colher" [fora da gramática]
+  pensando alto: "as riem" [fora da gramática]
+  pensando alto: "a zebra come os pães" [gramatical, mas não aconteceu assim]
+  pensando alto: "a ovelha está na casa" [gramatical, mas não aconteceu assim]
+  pensando alto: "os gatos comeram a abóbora" [verdade: ela viu isso]
+olhos: 358 conceitos de coisas e 22 de lugares formados (para 202 coisas e 24 lugares) | a mesma coisa vista 3 vezes cai no mesmo conceito: 68% | coisas com um conceito só delas: 70%
+
+infância de 10000 momentos (5181 cenas vistas, 5181 episódios na memória) — cenas vistas pelos olhos
+1. compreensão ("o A vê o B": qual das duas cenas?), 200 testes com pares que ela nunca viu juntos:
+     com a ordem aprendida: 66%   | sem (papéis sorteados): 54%   | acaso: 50%
+2. descrição de cenas novas, 200 cenas: certa (gramatical, papéis na ordem certa)
+     com a ordem aprendida: 10% (gramatical 46%) | ordem sorteada: 2% (gramatical 36%)
+   quantidade (entre as descrições certas): um/muitos certo para quem faz e para o alvo: 67% | sem a quantidade aprendida: 44%   (18 descrições; verbo no presente: 100%)
+3. perguntas sobre a cena de 3 cenas atrás, 200 perguntas: certa (gramatical e com o fato certo)
+     com memória: 14% (fato certo 14%, gramatical 49%, silêncio 44%) | sem memória: 0% (fato 1%, gramatical 36%)
+     por tipo, com memória: onde 20% | o quê 0% | quem 0%
+   tempo: a resposta vem no tempo da pergunta ("o que o gato come/comeu?"): 0% | sem o tempo aprendido: 0%   (0 respostas com verbo)
+4. pensando alto (4 min de silêncio): 18 falas, 67% gramaticais, 11% verdadeiras (descrevem algo que ela viu), 41% no passado (das que têm verbo)

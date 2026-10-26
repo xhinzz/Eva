@@ -4,7 +4,7 @@ Um cérebro simulado em C++, inspirado na biologia, feito para conversar de verd
 
 Há duas Evas neste repositório:
 
-- **Eva 2** (`v2/`, executável `eva2`): um **córtex de colunas** (memória temporal hebbiana, no modelo de Hawkins/Numenta) ligado a um **mundo** onde ela percebe e age, com **olhos** (um córtex visual hebbiano que vê, lembra e imagina imagens) e **gramática que emerge** (ela descobre sozinha as espécies de palavras ouvindo 20 mil frases de uma casa, e diz frases certas que nunca ouviu), um **tema** (ela responde sobre o assunto da sua frase), **memória de episódios** e **papéis** (entende quem fez o quê pela ordem das palavras, responde "cadê / o que / quem" pelo que lembra, e fala sozinha do que viu). Frases longas, contexto longo, memória que persiste em disco entre conversas, e **sentido**: palavras ancoradas no que ela vê, faz e sente. É a que conversa.
+- **Eva 2** (`v2/`, executável `eva2`): um **córtex de colunas** (memória temporal hebbiana, no modelo de Hawkins/Numenta) ligado a um **mundo** onde ela percebe e age, com **olhos** (um córtex visual hebbiano que vê, lembra e imagina imagens) e **gramática que emerge** (ela descobre sozinha as espécies de palavras ouvindo 20 mil frases de uma casa, e diz frases certas que nunca ouviu), um **tema** (ela responde sobre o assunto da sua frase), **memória de episódios** e **papéis** (entende quem fez o quê pela ordem das palavras, responde "cadê / o que / quem" pelo que lembra, e fala sozinha do que viu), **quantidade e tempo** (vê se é um ou muitos e diz "os gatos"; responde "o que o gato comeu?" no passado), e, experimental, **cenas vistas pelos olhos** em vez de símbolos. Frases longas, contexto longo, memória que persiste em disco entre conversas, e **sentido**: palavras ancoradas no que ela vê, faz e sente. É a que conversa.
 - **Eva 1** (`src/`, executável `eva`): neurônios de pulsos ms a ms, hipocampo, sono, dopamina. É onde tudo começou, e onde ficaram os experimentos e as medições que levaram à Eva 2. Está documentada mais abaixo.
 
 ## Eva 2 em uma página
@@ -27,7 +27,7 @@ Há duas Evas neste repositório:
 | 2 | **73%** | **112/160** |
 | 3 | 77% | 122/160 |
 
-(Hoje, com o córtex escalável e a punição de previsão errada corrigida, 2 exposições dão **83%** e 123/160; veja "Gramática que emerge".) Boa parte dos erros restantes é ambiguidade legítima do começo ("eu vou" → trabalhar? dormir? viajar?). Roda em 1 segundo. Para comparar: a Eva 1 chegava a 80% em 3 frases curtas *sem* palavra compartilhada, e caía a 55% com uma só palavra compartilhada.
+(Hoje, com o córtex escalável e a punição de previsão errada corrigida, 2 exposições dão **81%** e 121/160 (83% e 123/160 antes da competição entre intenções, na seção "Falar sobre o assunto"); veja "Gramática que emerge".) Boa parte dos erros restantes é ambiguidade legítima do começo ("eu vou" → trabalhar? dormir? viajar?). Roda em 1 segundo. Para comparar: a Eva 1 chegava a 80% em 3 frases curtas *sem* palavra compartilhada, e caía a 55% com uma só palavra compartilhada.
 
 **Conversa real, sem edição** (primeira sessão, do zero):
 
@@ -235,24 +235,27 @@ Duas coisas precisaram mudar para isso funcionar, e as duas são de arquitetura.
 
 | | no assunto (usa um substantivo da sua frase) | gramatical | no assunto **e** gramatical | eco |
 |---|---|---|---|---|
-| tema **ligado** | **62%** | **72%** | **46%** | 11% |
-| tema desligado | 7% | 45% | 1% | 44% |
+| tema **ligado** | **84%** | **66%** | **56%** | 12% |
+| tema desligado | 11% | 57% | 3% | 17% |
 
-(Com a imitação de frases novas ligada, como na conversa normal: 62% / 59% / 38% contra 10% / 35% / 1%; `logs/topic_com_imitacao.txt`.) "Eco" é quando ela não acha o que dizer e repete o começo da sua frase. Sem tema, ela cai nisso 44% das vezes; com tema, 11%.
+(Com a imitação de frases novas ligada, como na conversa normal: 83% / 71% / 57% contra 10% / 48% / 2%; `logs/topic_com_imitacao.txt`.) "Eco" é quando ela não acha o que dizer e repete o começo da sua frase.
+
+**Remedido depois das cenas, e corrigido.** Quando esta seção foi escrita, o resultado era 62% / 72% / **46%**. Medindo de novo depois do passo das cenas (o corpus cresceu: passado, perguntas, cenas), tinha caído para 62% / 60% / **35%** (o mesmo no commit anterior, então a queda veio do passo das cenas, não deste). O log mostrou o porquê: ela respondia muito sobre a frase *anterior* ("os professores sobem" → "a batata é lindo"). O assunto antigo esmaece pela metade a cada frase, e metade ainda passava do limiar de "querer dizer"; as intenções somavam em vez de competir. Agora elas competem: o peso de cada intenção é o tema elevado a 6 (`topic_sharp`), então o assunto de agora (1,0) vence o de antes (0,5) por 64 a 1, mas o de antes ainda aparece quando o de agora não cabe. Medido com 1, 3 e 6: 35%, 52%, **56%**. O custo foi pequeno nas frases decoradas (83% → 81% das palavras).
 
 Respostas reais do log (tema ligado):
 
 ```
-Voce: os amigos gostam dos peixes         Eva: os amigos gostam dos pães          no assunto, gramatical
-Voce: os morangos estão no tapete         Eva: os morangos estão no sofá          no assunto, gramatical
-Voce: o bebê come a cenoura               Eva: a cenoura é muito sozinha          no assunto, gramatical
-Voce: os hipopótamos querem nadar         Eva: vamos nadar                        (pegou o verbo, não o bicho)
-Voce: os pães são muito amarelos          Eva: os pães são muito quentinha        erro de concordância
-Voce: o elefante é arrumado               Eva: o porco está na varanda            outro assunto (o porco era o assunto de antes)
-Voce: a amiga é amarela                   Eva: os porcos tossem a gelatina é muito sozinha   emendou frases
+Voce: o homem come o presunto             Eva: o presunto é perfumado             no assunto, gramatical
+Voce: os moços riem                       Eva: os moços gostam da mamãe           no assunto, gramatical
+Voce: as raposas comem os chocolates      Eva: os chocolates são muito fortes     no assunto, gramatical
+Voce: o avião elegante está na garagem    Eva: o avião está na escola             no assunto, gramatical
+Voce: os ratos querem voltar              Eva: vamos voltar                       (pegou o verbo, não o bicho)
+Voce: a vovó come a batata                Eva: a batata é lindo                   erro de concordância
+Voce: os professores sobem                Eva: a batata é lindo está no sofá      outro assunto (a batata era de antes) e emendou
+Voce: os jacarés veem os pavões           Eva: os pavões comem as goiabas são assustadas   emendou frases
 ```
 
-E uma conversa depois da infância de 20 mil frases (`logs/infancia_conversa.txt`):
+E uma conversa depois da infância de 20 mil frases (de quando esta seção foi escrita; o `logs/infancia_conversa.txt` de agora é a conversa com cenas, mais abaixo):
 
 ```
 Voce: o gato é bonito                     Eva: o gato é bonito
@@ -265,7 +268,7 @@ Voce: o leão é grande                     Eva: é um leão
 
 `/tema` mostra do que ela acha que se está falando (`assunto agora: banana(1.10) come(1.00) vaca(1.00) ...`).
 
-**O que isto é e o que não é.** É o começo de "falar sobre": ela pega o assunto da sua frase e diz algo dela sobre ele, com a gramática que aprendeu, em quase metade das vezes, contra 1% sem o tema. Não é ainda **responder**: ela não entende pergunta ("cadê o gato?" não é diferente de "o gato"), não sabe quem faz o quê na sua frase, e às vezes fala do assunto anterior ou emenda frases. O que ela diz sobre o assunto ainda é o que *cabe* (gramática + lembrança), não o que é *verdade* no mundo dela. Os próximos passos eram esses: quem faz o quê, perguntas e respostas, e memória de episódios. Estão na seção seguinte.
+**O que isto é e o que não é.** É o começo de "falar sobre": ela pega o assunto da sua frase e diz algo dela sobre ele, com a gramática que aprendeu, em mais da metade das vezes, contra 3% sem o tema. Não é ainda **responder**: ela não entende pergunta ("cadê o gato?" não é diferente de "o gato"), não sabe quem faz o quê na sua frase, e às vezes fala do assunto anterior ou emenda frases. O que ela diz sobre o assunto ainda é o que *cabe* (gramática + lembrança), não o que é *verdade* no mundo dela. Os próximos passos eram esses: quem faz o quê, perguntas e respostas, e memória de episódios. Estão na seção seguinte.
 
 ## Quem faz o quê, perguntas e lembranças
 
@@ -282,7 +285,7 @@ E duas que juntam tudo:
 - **Plano de fala ordenado.** O tema da seção anterior era um saco de palavras. Para descrever uma cena ou responder, ela agora monta um *plano*: os sentidos que quer dizer, na ordem que aprendeu (quem faz, ação, alvo). Cada item entra quando a gramática deixa; antes dele, o caminho até ele ("a" antes de "gelatina", "está no" antes de "zoológico"); quando o plano acaba, ela termina a frase.
 - **Mapeamento rápido.** Uma única exposição basta para um nome novo: numa cena com o gato (já conhecido) e algo novo, a palavra nova se liga à coisa nova, porque a força da ligação é normalizada pelo quanto cada coisa já tem nome. É a "exclusividade mútua" das crianças, de graça.
 
-**Medido** (`logs/scenes.txt`; `eva2_scenes 10000 200`: infância de 10 mil momentos, 6.735 cenas):
+**Medido** nesta versão (`eva2_scenes 10000 200`: infância de 10 mil momentos, 6.735 cenas; o `logs/scenes.txt` de agora é da versão com número e tempo, na seção seguinte):
 
 | teste | com o que ela aprendeu | sem (no mesmo cérebro) |
 |---|---|---|
@@ -304,7 +307,7 @@ pensando alto: "os jacarés comem o sanduíche"   [verdade: ela viu isso]
 pensando alto: "a barata gosta da abelha"       [verdade: ela viu isso]
 ```
 
-E uma conversa de verdade depois de uma infância de 10 mil momentos (`logs/infancia_conversa.txt`). As três primeiras linhas são cenas que acontecem na frente dela (`/cena`):
+E uma conversa de verdade depois de uma infância de 10 mil momentos (desta versão; a conversa de agora, com passado e número, está na seção seguinte). As três primeiras linhas são cenas que acontecem na frente dela (`/cena`):
 
 ```
 (ela vê: mulher gosta irmã, em piscina; você diz: "as mulheres gostam das irmãs")
@@ -329,7 +332,128 @@ Novos comandos na conversa: `/cena` (algo acontece na frente dela e você descre
 - **Palavras raras não "cabiam"**: o plano exigia que a gramática previsse 80% do código de categoria da palavra; "pudim" (ouvido 27 vezes) não chegava lá. Com 60% para o que ela *quer* dizer, a descrição foi de 44% para 76% e as respostas de 76% para 91%.
 - **O relógio não era salvo**: ao carregar a memória, o tempo voltava a zero e as lembranças "do futuro" pesavam demais; ela repetia a mesma lembrança. Agora o relógio é salvo e contar uma lembrança gasta um pouco dela.
 
-**O que isto é e o que não é.** É compreensão e fala ligadas ao que aconteceu: ela entende quem fez o quê pela ordem das palavras, responde perguntas com o que lembra, e fala sozinha do que viu, quase sempre com verdade. As cenas, porém, chegam como símbolos (quem, o quê, onde), não como imagens; o mundo das cenas tem 5 tipos de acontecimento; e ela não percebe quantidade nem tempo (tudo é presente: "o gato come", não "o gato comeu"). O plano de fala, a recuperação de episódios e a pergunta→papel são arquitetura escrita; o que é aprendido é o sentido das palavras, a ordem dos papéis, o que cada palavra de pergunta pede, e a gramática que preenche o resto.
+**O que isto é e o que não é.** É compreensão e fala ligadas ao que aconteceu: ela entende quem fez o quê pela ordem das palavras, responde perguntas com o que lembra, e fala sozinha do que viu, quase sempre com verdade. As cenas, porém, chegam como símbolos (quem, o quê, onde), não como imagens; o mundo das cenas tem 5 tipos de acontecimento; e nesta versão ela não percebia quantidade nem tempo. O plano de fala, a recuperação de episódios e a pergunta→papel são arquitetura escrita; o que é aprendido é o sentido das palavras, a ordem dos papéis, o que cada palavra de pergunta pede, e a gramática que preenche o resto. Quantidade, tempo e cenas vistas pelos olhos estão na seção seguinte.
+
+## Quantos, quando, e cenas vistas pelos olhos
+
+Os dois limites da seção anterior que mais apareciam na conversa eram: "as zebras comem os doces" para uma zebra só, e tudo no presente ("o gato come" quando a pergunta era sobre o que já passou). E as cenas chegavam como símbolos. Os três foram atacados.
+
+### Um ou muitos
+
+Agora ela **vê quantos são**: cada cena traz, junto com quem e o quê, uma percepção de número (`[um]` ou `[muitos]`) para quem faz e para o alvo, como o "senso numérico" que bebês já têm para 1 contra vários. A casa fala de acordo ("o gato come o peixe", "os gatos comem os peixes"). Ninguém diz a ela que "-s" é plural.
+
+O que ela faz com isso: um sentido ("gato") tem várias formas que ela ouviu ("gato", "gatos"). A forma que vai para a fala é a que mais se ligou, pela experiência, ao que ela está vendo agora: `[muitos]` puxa "gatos", `[um]` puxa "gato" (`choose_forms`, por diferença de força). O verbo concorda com quem faz pela gramática que ela já tinha ("os gatos" → "comem").
+
+### Agora ou antes
+
+Os verbos agora têm passado no corpus ("comeu/comeram", "viu/viram", "gostou/gostaram", "correu/correram", "estava/estavam", ...). A infância tem dois tipos de momento novos: alguém **conta** uma cena que já passou ("o gato comeu o peixe") e **pergunta no passado** sobre ela ("o que o gato comeu? ... o gato comeu o peixe!"). Durante essas falas ela percebe `[antes]`; nas cenas que acontecem na frente dela, `[agora]`.
+
+- Para **falar** no passado ela usa o mesmo mecanismo do número: entre as formas de "come", a que mais se ligou a `[antes]` é "comeu".
+- Para **saber se a pergunta é no passado**, ela olha a palavra da pergunta mais marcada por `[antes]` ou `[agora]` (`sounds_past`). "o que o gato comeu?" → passado; "o que o gato come?" → presente. Ela responde no tempo da pergunta.
+- Quando **pensa alto** sozinha, o que ela lembra já passou: ela conta no passado ("a médica estava na rua").
+
+### Medido (`logs/scenes.txt`)
+
+Mesmo teste da seção anterior (`eva2_scenes 10000 200`), agora com número e tempo. Infância de 10 mil momentos, 5.181 cenas:
+
+| teste | com o que ela aprendeu | sem (no mesmo cérebro) |
+|---|---|---|
+| compreensão: "o boi vê o leão", qual das duas cenas? | **100%** | 48% (acaso 50%) |
+| descrição de cenas novas, gramatical e com os papéis no lugar | **74%** (gramatical 84%) | 25% (ordem sorteada) |
+| **quantidade**: nas descrições certas, um/muitos certo para quem faz e para o alvo | **98%** | 28% (sem a percepção de número) |
+| perguntas sobre a cena de 3 cenas atrás, gramatical e com o fato certo | **94%** (fato certo 98%; onde 100%, quem 93%, o quê 69%) | 6% (sem memória) |
+| **tempo**: a resposta vem no tempo da pergunta ("come/comeu") | **91%** | 50% (sem o tempo aprendido) |
+| pensando alto: 18 falas | 67% gramaticais, 56% verdadeiras, 67% no passado | — |
+
+Do log:
+
+```
+descrição: cena [irmã está em zoológico]  -> "as irmãs estão no zoológico"      [certa: eram várias]
+descrição: cena [girafa come gelatina]    -> "as girafas comem as gelatinas"    [certa: várias e várias]
+descrição: cena [macaco vê pudim]         -> "o macaco vê o pudim"              [certa: um e um]
+pergunta: "o que a gata comeu?"   -> "a gata comeu o pudim"            (verdade: pudim)
+pergunta: "quem vê o macaco?"     -> "a amiga vê o macaco"             (verdade: amiga)
+pergunta: "o que o urso comeu?"   -> "o urso come a comeu a uva"       <- fato certo, frase errada
+pergunta: "quem comeu a uva?"     -> "o galo comeu"                    <- fato certo, faltou o alvo
+pergunta: "o que o tigre viu?"    -> "o tigre vê a pata viu os bolos escondidos estão no sofá"   <- errada (verdade: tomate)
+pensando alto: "a pata brincou"                  [verdade: ela viu isso]
+pensando alto: "os professores viram o ursinho"  [verdade: ela viu isso]
+pensando alto: "as irmãs gostaram o martelo"     [fora da gramática]
+```
+
+O ponto fraco é o "o quê" no passado: a forma do passado ("comeu", "viu") é rara e às vezes não cabe na gramática naquele ponto; ela começa no presente, e o passado entra depois, emendado. As perguntas "onde" e "quem" quase não erram.
+
+E a conversa (`logs/infancia_conversa.txt`, depois de `--infancia 10000`; as quatro primeiras linhas são cenas na frente dela):
+
+```
+(ela vê: médica sobe, em garagem;           você diz: "a médica sobe")
+(ela vê: papai come bolacha, em praça;      você diz: "o papai come a bolacha")
+(ela vê: gata chega, em cozinha;            você diz: "a gata chega")
+(ela vê: palhaço gosta sino, em varanda;    você diz: "os palhaços gostam do sino")
+/conta                         Eva: os palhaços gostam o sino
+Voce: cadê a médica            Eva: a médica está na garagem
+Voce: o que o papai come       Eva: o papai come a bolacha
+Voce: o que o papai comeu      Eva: o papai comeu a bolacha
+Voce: quem comeu a bolacha     Eva: o papai comeu a bolacha
+Voce: cadê os palhaços         Eva: os palhaços estão na varanda
+Voce: cadê a gata              Eva: a gata está na cozinha
+(30 s de silêncio)             Eva: cadê as tapiocas
+                               Eva: os professores estavam na varanda
+                               Eva: a barata estava na casa
+```
+
+Todas as respostas certas, no número e no tempo certos ("os palhaços", "comeu" quando a pergunta é no passado, "come" quando é no presente). O `/conta` errou a preposição ("gostam o sino"), e ela pensa alto no passado ("estavam", "estava"), porque lembrança é passado.
+
+**O que deu errado no caminho:**
+
+- **As formas do passado não tinham sentido.** "comeu" aparece muito menos que "come", e a força crua da ligação nunca deixava "comeu" ser o nome de `[acao:come]`. O sentido de uma palavra passou a ser medido pela **especificidade** (quanto da experiência da palavra vem daquela percepção), não pela força total. Isso também tirou o "o" do papel de ação (ele tinha virado "nome" de `[acao:come]` por aparecer sempre junto).
+- **Perguntas no presente eram respondidas no passado**, porque "que" aparecia mais nas perguntas no passado. Agora conta a palavra da pergunta *mais* marcada pelo tempo, não a soma.
+- **"o que o urso comeu" era lida como "quem"**: "comeu" tinha virado palavra de pergunta. Agora só palavras *sem sentido próprio* contam como palavra de pergunta.
+- **"o papai vê os elefantes" em vez de "o papai come a bolacha"**: quando o córtex de categorias não tinha opinião firme (nada cabia bem), o verbo do plano ficava de fora. Agora, quando a gramática está insegura, a intenção decide.
+- **"o papai vê os palhaços" para "o que o papai comeu?"**: depois de "o papai", a memória de palavras lembrava exatamente "comeu" (é o que ela ouviu), mas a espécie de "comeu", palavra rara, ainda era mal prevista pelo córtex de categorias, e o plano a recusava. Agora, se a memória de palavras lembra com segurança justamente o que ela quer dizer, isso basta.
+
+### Cenas vistas pelos olhos (experimental)
+
+O passo mais difícil: tirar os símbolos. Com `--olhos` (ou `EYES=1` no teste), quem faz, o alvo e o lugar chegam como **imagens**: cada uma das 202 coisas da casa tem um desenho próprio (forma, cores, marcas), desenhado um pouco diferente a cada vez (posição, tom), e cada um dos 24 lugares tem um fundo próprio (listras, xadrez, diagonais). Ninguém diz a ela que aquele desenho é "gato".
+
+![doze das 202 coisas como os olhos dela recebem](imagens/olhos_coisas.png)
+
+![o mesmo gato visto seis vezes, e quatro lugares](imagens/olhos_vistas.png)
+
+Como ela forma um conceito do que vê (`v2/vision.cpp`):
+
+1. **Traços que não ligam para a posição.** As 96 unidades de V1 (detectores de borda e cor, hebbianos) varrem a imagem inteira; para cada uma fica a resposta mais forte (como as células complexas: "tem uma borda vertical vermelha em algum lugar"), no todo e em 3×3 zonas da caixa do objeto. São 960 números, normalizados pela média e desvio de tudo o que ela já viu (modelo HMAX, Riesenhuber e Poggio).
+2. **Conceitos por exemplares.** Um conceito guarda até 8 vistas; algo novo cai no conceito com maior semelhança média, ou abre um conceito novo.
+3. **A palavra ajuda a ver.** Se ela ouve um nome que já tem um conceito visual forte, o limiar para cair nele é menor (como "olha o gato!" ajuda a criança a juntar vistas diferentes).
+
+O conceito visual vira a percepção da cena (`[ve:c37]` em vez de `[ve:gato]`), e todo o resto (sentido das palavras, papéis, perguntas, memória) é o mesmo de antes.
+
+**Medido** (`logs/scenes_olhos.txt`; `EYES=1 eva2_scenes 10000 200`), honestamente fraco:
+
+| | pelos olhos | com símbolos (acima) |
+|---|---|---|
+| conceitos formados | 358 de coisas (para 202) e 22 de lugares (para 24) | — |
+| a mesma coisa vista 3 vezes cai no mesmo conceito | 68% | 100% |
+| coisas com um conceito só delas | 70% | 100% |
+| compreensão (qual das duas cenas) | 66% (sem a ordem: 54%) | 100% |
+| descrição certa | 10% | 74% |
+| perguntas certas | 14% (onde 20%; silêncio 44%) | 94% |
+| pensando alto, verdadeiras | 11% | 56% |
+
+Onde está a perda: quase tudo vem do primeiro passo. Com 202 coisas, um terço das vistas cai num conceito errado ou num conceito novo, e uma palavra ligada a dois conceitos (ou um conceito ligado a duas palavras) quebra a cadeia sentido → papel → memória → resposta. Mesmo com os conceitos perfeitos, o melhor que esses traços conseguem é ~80% de acerto ao reconhecer qual das 202 coisas é (vizinho mais próximo pela média de cada coisa, medido à parte): os traços de V1 sozinhos não bastam para tantas coisas parecidas.
+
+O que foi tentado e não funcionou: os códigos de V2 da seção "Olhos" (25% de consistência com tantas coisas); traços de "presença" sem zonas; protótipos por média móvel (desabavam todos num conceito); exemplares por semelhança máxima (encadeavam coisas diferentes); juntar no sono conceitos que têm o mesmo nome (`merge_specificity`; as junções erradas se propagavam e pioraram tudo, ficou desligado). Os desenhos tinham colisões (duas coisas com a mesma aparência); agora cada coisa tem uma combinação única.
+
+Os próximos passos dos olhos são uma hierarquia visual de verdade (V2/V4 aprendidos sobre esses traços, não só V1), olhar mais de uma vez (sacadas: três olhares na mesma coisa), e deixar a palavra corrigir o conceito *depois* (separar um conceito quando a mesma vista recebe dois nomes diferentes com frequência).
+
+Na conversa: `./build/eva2 --olhos --infancia 10000` vive a infância pelos olhos, e `/cena` escreve o que ela viu em `cena.ppm`.
+
+### Próximos passos (Eva 2)
+
+- **Olhos que dão conta de 200 coisas**: a hierarquia visual e as sacadas acima, até as cenas pelos olhos chegarem perto das cenas por símbolos.
+- **Frases que não emendam**: a maior parte dos erros que restam é a frase continuar depois do fim ("o tigre vê a pata viu os bolos..."). O fim da frase precisa de um sinal próprio (o plano acabou *e* a gramática fecha), não só da previsão de `<fim>`.
+- **Mais de uma frase por vez e diálogo de verdade**: perguntar de volta, dizer "não sei", corrigir o que ouviu errado; hoje ela responde e para.
+- **Um mundo de cenas maior**: mais tipos de acontecimento (dar, pegar, ir de um lugar a outro), causas ("porque"), e quem fala com quem.
 
 ## Resultados, logs e imagens
 
@@ -339,12 +463,15 @@ Novos comandos na conversa: `/cena` (algo acontece na frente dela e você descre
 
 | o quê | resultado | log |
 |---|---|---|
-| frases longas (20 frases, 2 exposições, 8 sementes) | 83% das palavras, 123/160 frases inteiras | `logs/bench2.txt` |
-| falar sobre o assunto: responde usando um substantivo da sua frase, e gramatical | 46% com o tema; 1% sem | `logs/topic.txt` |
+| frases longas (20 frases, 2 exposições, 8 sementes) | 81% das palavras, 121/160 frases inteiras (era 83% e 123/160 antes da competição entre intenções) | `logs/bench2.txt` |
+| falar sobre o assunto: responde usando um substantivo da sua frase, e gramatical | 56% com o tema; 3% sem | `logs/topic.txt` |
 | quem faz o quê: "o A vê o B", qual das duas cenas? | 100% (acaso 50%) | `logs/scenes.txt` |
-| descrever uma cena nova na ordem certa | 77% (26% com a ordem sorteada) | `logs/scenes.txt` |
-| responder "cadê / o que / quem" sobre o que viu 3 cenas atrás | 94% com memória; 4% sem | `logs/scenes.txt` |
-| pensando alto: o que ela diz aconteceu de verdade | 83% | `logs/scenes.txt` |
+| descrever uma cena nova na ordem certa | 74% (25% com a ordem sorteada) | `logs/scenes.txt` |
+| responder "cadê / o que / quem" sobre o que viu 3 cenas atrás | 94% com memória; 6% sem | `logs/scenes.txt` |
+| quantidade: um/muitos certo na descrição | 98%; 28% sem a percepção de número | `logs/scenes.txt` |
+| tempo: responde no tempo da pergunta ("come/comeu") | 91%; 50% sem | `logs/scenes.txt` |
+| pensando alto: o que ela diz aconteceu de verdade | 56% (67% gramaticais; 67% no passado) | `logs/scenes.txt` |
+| cenas vistas pelos olhos (experimental): compreensão / perguntas certas | 66% / 14% | `logs/scenes_olhos.txt` |
 | gramática: começar a frase com um bicho que ela só ouviu como objeto (20 mil frases) | 78% frases certas e novas com a gramática; 0% sem ela | `logs/grammar.txt` |
 | gramática: sujeitos conhecidos (20 mil frases) | 78% com a gramática; 67% sem | `logs/grammar.txt` |
 | categorias: o vizinho mais parecido é da mesma classe (20 mil frases) | 93% | `logs/grammar.txt`, `logs/categories_test.txt` |

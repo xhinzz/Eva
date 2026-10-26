@@ -55,6 +55,17 @@ public:
         return std::min(1.0f, b->second / std::sqrt(cp * cw));
     }
 
+    // quanto da presença da palavra vem junto com esta percepção (0..1):
+    // "comeu" quase só aparece com comer; "a" aparece com tudo
+    float specificity(const std::string& perception, const std::string& word) const {
+        auto a = assoc_.find(perception);
+        if (a == assoc_.end()) return 0.0f;
+        auto b = a->second.find(word);
+        if (b == a->second.end()) return 0.0f;
+        auto cw = count_w_.find(word);
+        return cw == count_w_.end() || cw->second <= 0 ? 0.0f : std::min(1.0f, b->second / cw->second);
+    }
+
     // palavras que esta percepção evoca, da mais forte para a mais fraca
     std::vector<std::pair<std::string, float>> words_for(const std::string& perception, float min_strength) const {
         std::vector<std::pair<std::string, float>> out;
@@ -99,6 +110,23 @@ public:
     float frequency(const std::string& w) const {
         auto it = turns_with_.find(w);
         return (it == turns_with_.end() || turns_ == 0) ? 0.0f : static_cast<float>(it->second) / turns_;
+    }
+
+    // duas percepções eram a mesma coisa: junta tudo que a segunda aprendeu na primeira
+    void merge_perception(const std::string& into, const std::string& from) {
+        if (into == from) return;
+        auto a = assoc_.find(from);
+        if (a != assoc_.end()) {
+            for (const auto& [w, v] : a->second) {
+                assoc_[into][w] += v;
+                auto& rev = assoc_rev_[w];
+                rev[into] += v;
+                rev.erase(from);
+            }
+            assoc_.erase(a);
+        }
+        auto c = count_p_.find(from);
+        if (c != count_p_.end()) { count_p_[into] += c->second; count_p_.erase(c); }
     }
 
     size_t size() const { return assoc_.size(); }

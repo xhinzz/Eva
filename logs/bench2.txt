@@ -1,1 +1,1 @@
-20 frases x 2 repeticoes, 8 sementes: palavras certas 489/592 (83%), frases inteiras 123/160
+20 frases x 2 repeticoes, 8 sementes: palavras certas 481/592 (81%), frases inteiras 121/160

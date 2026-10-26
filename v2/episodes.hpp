@@ -31,6 +31,7 @@ namespace eva2 {
 // O que ela percebe de uma cena (símbolos de percepção, não palavras)
 struct Scene {
     std::string agent, action, patient, place;  // ex.: "gato", "come", "peixe", "cozinha"
+    bool agent_many = false, patient_many = false;  // um ou muitos (ela vê quantos são)
 };
 
 enum Role { kAgent = 0, kAction = 1, kPatient = 2, kPlace = 3, kRoles = 4 };
@@ -86,6 +87,14 @@ public:
     }
     // contar uma lembrança gasta um pouco dela (ninguém conta a mesma coisa sem parar)
     void told(const Episode* e) { for (auto& x : episodes_) if (&x == e) x.salience *= 0.4f; }
+    // um conceito passou a ser outro (os olhos juntaram duas coisas que eram uma)
+    void rename(const std::string& from, const std::string& into) {
+        for (auto& e : episodes_) {
+            if (e.scene.agent == from) e.scene.agent = into;
+            if (e.scene.patient == from) e.scene.patient = into;
+            if (e.scene.place == from) e.scene.place = into;
+        }
+    }
     size_t size() const { return episodes_.size(); }
     const std::vector<Episode>& all() const { return episodes_; }
     void clear() { episodes_.clear(); }
@@ -95,6 +104,8 @@ public:
         out.write(reinterpret_cast<const char*>(&n), sizeof n);
         for (const auto& e : episodes_) {
             for (const auto* f : {&e.scene.agent, &e.scene.action, &e.scene.patient, &e.scene.place}) wstr(out, *f);
+            const uint8_t many = (e.scene.agent_many ? 1 : 0) | (e.scene.patient_many ? 2 : 0);
+            out.write(reinterpret_cast<const char*>(&many), 1);
             out.write(reinterpret_cast<const char*>(&e.time), sizeof e.time);
             out.write(reinterpret_cast<const char*>(&e.salience), sizeof e.salience);
         }
@@ -105,6 +116,9 @@ public:
         episodes_.assign(n, {});
         for (auto& e : episodes_) {
             for (auto* f : {&e.scene.agent, &e.scene.action, &e.scene.patient, &e.scene.place}) *f = rstr(in);
+            uint8_t many = 0;
+            in.read(reinterpret_cast<char*>(&many), 1);
+            e.scene.agent_many = many & 1; e.scene.patient_many = many & 2;
             in.read(reinterpret_cast<char*>(&e.time), sizeof e.time);
             in.read(reinterpret_cast<char*>(&e.salience), sizeof e.salience);
         }

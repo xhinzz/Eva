@@ -49,14 +49,21 @@ struct Eva2Config {
     float topic_self = 0.1f;       // o que ela mesma disse
     float topic_function_freq = 0.12f;  // palavras em mais frases que isto ("o", "é") não são tema
     float topic_intent = 0.3f;     // tema acima disto é "o que ela quer dizer": entra se a gramática deixar
+    float topic_sharp = 6.0f;      // competição entre intenções: o assunto mais recente vence com folga (peso = tema^isto)
     float topic_fit = 0.8f;        // ... e se a gramática, segura, prevê tanto do código de categoria dela
     // Episódios, papéis e perguntas (episodes.hpp)
     bool episodes_enabled = true;
     float question_confidence = 0.7f;  // quão certa ela precisa estar de que ouviu uma pergunta
-    float recall_chance = 0.8f;
-    float plan_fit = 0.6f;             // o que ela quer dizer entra se a gramática prevê tanto do código dele        // ao pensar alto, chance de lembrar um episódio em vez de olhar em volta
+    float recall_chance = 0.8f;        // ao pensar alto, chance de lembrar um episódio em vez de olhar em volta
+    float plan_fit = 0.5f;             // o que ela quer dizer entra se a gramática prevê tanto do código dele
     int min_overlap = 16;        // colunas previstas que uma palavra precisa ter para ser "a próxima"
     int max_reply_words = 12;
+    int eye_units = 640;               // unidades de V2 nos olhos das cenas
+    float label_match = 0.25f;          // a palavra ouvida decide qual é a coisa se ela se parece ao menos tanto com o conceito nomeado
+    float concept_match = 0.8f;        // sem palavra: parecida tanto com um conceito, é ele; menos, é coisa nova
+    // No sono, juntar conceitos que uma mesma palavra nomeia ao menos tanto. Testado
+    // com 0,15: piorou (juntou coisas diferentes em cascata); desligado (> 1).
+    float merge_specificity = 2.0f;
     int max_actions_per_turn = 3;
     bool world_enabled = true;
     float meaning_threshold = 0.3f;   // força (≈cosseno) mínima para uma palavra "significar" uma percepção
@@ -131,10 +138,14 @@ public:
     void witness(const Scene& scene, const std::vector<std::string>& words, float dopamine = 0.6f);
     // Alguém pergunta sobre a cena e responde ("cadê o gato?" "o gato está na sala").
     // Ela aprende o que cada palavra de pergunta pede.
-    void witness_dialogue(const Scene& scene, const std::vector<std::string>& question, const std::vector<std::string>& answer);
+    // past = true: a conversa é sobre algo que já passou (a lembrança volta; "o que o gato comeu?")
+    void witness_dialogue(const Scene& scene, const std::vector<std::string>& question, const std::vector<std::string>& answer, bool past = false);
+    // Alguém conta depois o que aconteceu ("o gato comeu o peixe"), e a lembrança volta
+    void recount(const Scene& scene, const std::vector<std::string>& words);
     // Ela descreve uma cena com as próprias palavras, na ordem que aprendeu
     // (use_order = false: as partes em ordem sorteada, para comparar)
-    std::vector<std::string> describe(const Scene& scene, bool use_order = true);
+    // (past: contando depois, como lembrança)
+    std::vector<std::string> describe(const Scene& scene, bool use_order = true, bool past = false);
     // Compreensão: das cenas oferecidas, qual a frase descreve? (índice; -1 = não sabe)
     int understand(const std::vector<std::string>& words, const std::vector<Scene>& options);
     // Resposta a uma pergunta pela memória (vazio se não for pergunta ou se ela não lembra)
@@ -146,6 +157,23 @@ public:
     const Scene& last_recalled() const { return last_recalled_; }  // o último episódio que ela contou sozinha
     void set_role_order_in_speech(bool on) { role_order_in_speech_ = on; }
     void set_role_order_in_understanding(bool on) { role_order_in_understanding_ = on; }
+    void set_number_in_speech(bool on) { number_in_speech_ = on; }
+    void set_tense_in_speech(bool on) { tense_in_speech_ = on; }
+    // Olhos para as cenas: um segundo córtex visual (maior) que amadurece vendo as
+    // coisas da casa, sem nomes. Depois, cada coisa vista vira um conceito formado
+    // pelos olhos ("c17"), e é ele que entra na cena, no episódio e no sentido das palavras.
+    void open_eyes(const std::vector<Image>& samples);
+    bool eyes_open() const { return eyes_open_; }
+    // `words`: o que ela ouve enquanto olha. Uma palavra que já nomeia um conceito
+    // diz qual é a coisa (a palavra ajuda a separar coisas parecidas: "isso é um
+    // rato, não uma lontra"); sem palavras, só os olhos decidem.
+    std::string see_thing(const Image& img, bool learn = true, const std::vector<std::string>& words = {});
+    std::string see_place(const Image& img, bool learn = true, const std::vector<std::string>& words = {});
+    size_t thing_concepts() const { return things_.size(); }
+    void set_concept_threshold(float t) { things_.threshold = t; places_.threshold = t; }
+    size_t place_concepts() const { return places_.size(); }
+    VisualCortex& eyes() { return eyes_; }
+
     // o sentido que uma palavra tem para ela ("[ve:gato]", "[acao:come]", "[lugar:sala]"; vazio se nenhum)
     std::string meaning_of(const std::string& word) const;
 
@@ -254,6 +282,11 @@ private:
     RoleOrder roles_;
     QuestionWords qwords_;
     bool memory_in_answers_ = true, role_order_in_speech_ = true, role_order_in_understanding_ = true;
+    bool number_in_speech_ = true, tense_in_speech_ = true;
+    // das formas de um sentido ("gato", "gatos"; "come", "comem", "comeu"...), as que
+    // combinam com quantos são e com quando foi
+    std::vector<int> choose_forms(const std::vector<int>& forms, bool many, bool past) const;
+    bool sounds_past(const std::vector<std::string>& words) const;
     std::vector<std::unordered_map<int, float>> prev_counts_;  // quem vem antes de cada palavra
     std::vector<std::vector<int>> plan_;  // o que ela quer dizer, em ordem (cada item: as formas de um sentido)
     size_t plan_pos_ = 0;
@@ -261,7 +294,7 @@ private:
     bool plan_active_ = false;
     std::vector<std::pair<int, std::string>> content_slots(const std::vector<std::string>& words) const;
     std::vector<int> forms_of(const std::string& meaning) const;
-    std::vector<std::vector<int>> plan_for(const Scene& s, const std::vector<int>& roles, bool use_order);
+    std::vector<std::vector<int>> plan_for(const Scene& s, const std::vector<int>& roles, bool use_order, bool past = false);
     std::vector<std::string> speak_plan(const std::vector<std::vector<int>>& plan, bool learn);
     std::vector<std::vector<int>> answer_plan(const std::vector<std::string>& question);
     void listen_turns(const std::vector<std::vector<std::string>>& turns, float dopamine);
@@ -289,6 +322,12 @@ private:
     void observe_categories(const std::vector<std::string>& words);
     void apply_category(int id);
     VisualCortex vision_;  // olhos e córtex visual
+    VisualCortex eyes_;    // olhos para as cenas (mais unidades: muitas coisas)
+    ConceptMemory things_, places_;
+    std::string see_with(ConceptMemory& mem, const char* prefix, const char* meaning_prefix, const Image& img, bool learn, const std::vector<std::string>& words);
+    // no sono: conceitos que têm o mesmo nome eram a mesma coisa vista de jeitos diferentes; viram um só
+    int consolidate_concepts(ConceptMemory& mem, const char* prefix, const char* meaning_prefix);
+    bool eyes_open_ = false;
     std::vector<std::vector<int>> unit_columns_;  // cada unidade de V2 -> colunas do córtex de sequências
     std::vector<int> visual_sdr(const VisualCode& c) const;
     std::vector<std::pair<std::string, float>> visual_tokens(const VisualCode& c) const;  // [v12] com ativação
