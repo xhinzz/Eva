@@ -1,47 +1,82 @@
-ordem aprendida (posição média entre as palavras com sentido, 0 = primeira):  quem faz 0.67  ação 1.41  alvo 2.67  lugar 0.95
-o que cada palavra de pergunta pede:  'cadê' -> lugar (98%)  'que' -> alvo (63%)  'quem' -> quem faz (59%)  'o' -> lugar (56%)
-  compreensão: "o boi vê o leão" -> ela escolhe: a cena trocada
+  olhos abertos (452 imagens)
+  infância: 2000 momentos
+  infância: 4000 momentos
+  infância: 6000 momentos
+  infância: 8000 momentos
+  infância: 10000 momentos
+ordem aprendida (posição média entre as palavras com sentido, 0 = primeira):  quem faz 0.01  ação 0.97  alvo 1.96  lugar 1.85
+o que cada palavra de pergunta pede:  'cadê' -> lugar (98%)  'que' -> alvo (98%)  'quem' -> quem faz (96%)  'o' -> alvo (46%)
+  compreensão: "o boi vê o leão" -> ela escolhe: a cena certa
   compreensão: "o gato vê a barata" -> ela escolhe: a cena certa
   compreensão: "a abelha vê o galo" -> ela escolhe: a cena certa
   compreensão: "o menino vê a amiga" -> ela escolhe: a cena certa
-  descrição: cena [galinha espirra ] -> "a espirra" [errada]
-  descrição: cena [preguiça gosta salada] -> "cadê as médicas" [errada]
-  descrição: cena [onça está  em banheiro] -> "a goiaba está na escola" [errada]
-  descrição: cena [menina come pudim] -> "o menina come o pudim" [errada]
-  descrição: cena [macaco vê pudim] -> "o tigre gosta das almofadas" [errada]
-  descrição: cena [coruja come pizza] -> "a pata come as pizzas" [errada]
-  descrição: cena [irmã está  em zoológico] -> "a zoológico" [errada]
-  descrição: cena [girafa come gelatina] -> "a girafa come o pão" [errada]
-  pergunta (onde, cena de 3 atrás): "cadê as professoras?" -> "as professoras comem as galinhas estão" [errada] (verdade: quintal)
-  pergunta no passado: "o que o urso comeu?" -> ""
-  pergunta (o quê, cena de 3 atrás): "o que o urso comeu?" -> "" [errada] (verdade: uva)
-  pergunta (onde, cena de 3 atrás): "cadê o macaco?" -> "o macaco come a sopa" [errada] (verdade: zoológico)
-  pergunta no passado: "o que o tigre viu?" -> ""
-  pergunta (o quê, cena de 3 atrás): "o que o tigre viu?" -> "" [errada] (verdade: tomate)
-  pergunta (quem, cena de 3 atrás): "quem vê o macaco?" -> "" [errada] (verdade: amiga)
-  pergunta (onde, cena de 3 atrás): "cadê a gata?" -> "a gata come o pudim" [errada] (verdade: fazenda)
-  pergunta (o quê, cena de 3 atrás): "o que os hipopótamos veem?" -> "" [errada] (verdade: amiga)
-  pergunta no passado: "o que o galo comeu?" -> ""
-  pergunta (o quê, cena de 3 atrás): "o que o galo comeu?" -> "" [errada] (verdade: uva)
-  pergunta (quem, cena de 3 atrás): "quem vê o morango?" -> "" [errada] (verdade: gato)
-  pergunta (onde, cena de 3 atrás): "cadê o macaco?" -> "o macaco está na garagem" [certa] (verdade: garagem)
-  pergunta no passado: "o que a borboleta comeu?" -> ""
-  pensando alto: "a barata está na casa" [gramatical, mas não aconteceu assim]
-  pensando alto: "as goiabas gostaram a colher" [fora da gramática]
-  pensando alto: "as riem" [fora da gramática]
-  pensando alto: "a zebra come os pães" [gramatical, mas não aconteceu assim]
-  pensando alto: "a ovelha está na casa" [gramatical, mas não aconteceu assim]
-  pensando alto: "os gatos comeram a abóbora" [verdade: ela viu isso]
-olhos: 358 conceitos de coisas e 22 de lugares formados (para 202 coisas e 24 lugares) | a mesma coisa vista 3 vezes cai no mesmo conceito: 68% | coisas com um conceito só delas: 70%
+  descrição: cena [gata vê cachorro] -> "as gatas veem o cachorro" [certa]
+  descrição: cena [cavalo come carne] -> "o cavalo come a carne" [certa]
+  descrição: cena [borboleta come suco] -> "a borboleta come o suco" [certa]
+  descrição: cena [hipopótamo gosta moça] -> "os hipopótamos gostaram o botão" [errada]
+  descrição: cena [cobra come carne] -> "as cobras comem as carnes" [certa]
+  descrição: cena [mulher come carne] -> "a mulher come a carne" [certa]
+  descrição: cena [mamãe brinca ] -> "a mamãe" [errada]
+  descrição: cena [pata gosta porco] -> "as patas gostam dos porcos" [certa]
+  pergunta (o quê, cena de 3 atrás): "o que o rato come?" -> "o rato come a torta" [certa] (verdade: torta)
+  pergunta (onde, cena de 3 atrás): "cadê o leão?" -> "o leão está" [errada] (verdade: zoológico)
+  pergunta (o quê, cena de 3 atrás): "o que o porco vê?" -> "o porco vê os abacaxis" [certa] (verdade: abacaxi)
+  pergunta (onde, cena de 3 atrás): "cadê a tia?" -> "a tia está" [errada] (verdade: zoológico)
+  pergunta (onde, cena de 3 atrás): "cadê a gata?" -> "a gata está" [errada] (verdade: praça)
+  pergunta no passado: "quem viu as mamães?" -> "as girafas viram as mamães"
+  pergunta (quem, cena de 3 atrás): "quem viu as mamães?" -> "as girafas viram as mamães" [certa] (verdade: girafa)
+  pergunta (onde, cena de 3 atrás): "cadê o pinguim?" -> "o pinguim está" [errada] (verdade: cozinha)
+  pergunta no passado: "quem viu o milho?" -> "não sei"
+  pergunta (quem, cena de 3 atrás): "quem viu o milho?" -> "não sei" [errada] (verdade: cachorro)
+  pergunta (onde, cena de 3 atrás): "cadê o porco?" -> "o porco está na praça" [certa] (verdade: praça)
+  pergunta no passado: "quem viu o médico?" -> "a gata viu o médico"
+  pergunta (quem, cena de 3 atrás): "quem viu o médico?" -> "a gata viu o médico" [certa] (verdade: gata)
+  pergunta no passado: "quem comeu o arroz?" -> "as meninas comeram o arroz"
+  pensando alto: "a ovelha comeu as goiabas" [verdade: ela viu isso]
+  pensando alto: "o gato viu" [fora da gramática]
+  pensando alto: "a médica está na rua" [verdade: ela viu isso]
+  pensando alto: "o macaco" [fora da gramática]
+  pensando alto: "a barata comeu a pipoca é muito vermelha" [fora da gramática]
+  pensando alto: "as meninas gostaram" [fora da gramática]
+  sim ou não: "o médico come o milho <?>" (não: era suco) -> "sim o médico come o suco"
+  sim ou não: "os amigos comem a banana <?>" (é verdade) -> "sim os amigos comem a banana"
+  sim ou não: "a gata saiu <?>" (é verdade) -> "sim a gata sai"
+  sim ou não: "a formiga vê o pudim <?>" (é verdade) -> "sim a formiga vê o burro"
+  sim ou não: "os papais comem as abóboras <?>" (não: era gelatina) -> "não os papais comem as gelatinas"
+  sim ou não: "a mamãe gosta do chá <?>" (é verdade) -> "sim a mamãe gosta do chá"
+  não sei: "cadê o tigre?" -> "não sei"
+  não sei: "cadê o jacaré?" -> "não sei"
+  não sei: "cadê a arara?" -> "não sei"
+  fato contado: "cadê o tio?" -> "não sei" (você contou: garagem)
+  fato contado: "o que a moça come?" -> "a moça come as goiabas" (você contou: goiaba)
+  fato contado: "cadê a médica?" -> "a médica está na cozinha" (você contou: garagem)
+  nome: você disse "o meu sapo chama nino"; "como chama o meu sapo?" -> "o seu sapo chama nino"
+  nome: você disse "o seu lobo chama luna"; "como chama o seu lobo?" -> "o meu lobo chama luna"
+  nome: você disse "o meu macaco chama teco"; "como chama o meu macaco?" -> "o seu macaco chama teco"
+  nome: você disse "o seu hipopótamo chama bibi"; "como chama o seu hipopótamo?" -> "o meu hipopótamo chama bibi"
+  sentimento: ela viu "o tio brinca"; "como você está?" -> "eu estou feliz"
+  sentimento: "você está feliz <?>" -> "sim eu estou feliz"
+  sentimento: ela viu "a pata cai"; "como você está?" -> "eu estou triste"
+  sentimento: "você está triste <?>" -> "sim eu estou triste"
+olhos: 265 conceitos de coisas e 37 de lugares formados (para 202 coisas e 24 lugares) | a mesma coisa vista 3 vezes cai no mesmo conceito: 92% | coisas com um conceito só delas: 89%
 
-infância de 10000 momentos (5181 cenas vistas, 5181 episódios na memória) — cenas vistas pelos olhos
+infância de 10000 momentos (5265 cenas vistas, 4797 episódios na memória) — cenas vistas pelos olhos
 1. compreensão ("o A vê o B": qual das duas cenas?), 200 testes com pares que ela nunca viu juntos:
-     com a ordem aprendida: 66%   | sem (papéis sorteados): 54%   | acaso: 50%
+     com a ordem aprendida: 100%   | sem (papéis sorteados): 56%   | acaso: 50%
 2. descrição de cenas novas, 200 cenas: certa (gramatical, papéis na ordem certa)
-     com a ordem aprendida: 10% (gramatical 46%) | ordem sorteada: 2% (gramatical 36%)
-   quantidade (entre as descrições certas): um/muitos certo para quem faz e para o alvo: 67% | sem a quantidade aprendida: 44%   (18 descrições; verbo no presente: 100%)
+     com a ordem aprendida: 50% (gramatical 67%) | ordem sorteada: 8% (gramatical 32%)
+   quantidade (entre as descrições certas): um/muitos certo para quem faz e para o alvo: 88% | sem a quantidade aprendida: 46%   (101 descrições; verbo no presente: 100%)
 3. perguntas sobre a cena de 3 cenas atrás, 200 perguntas: certa (gramatical e com o fato certo)
-     com memória: 14% (fato certo 14%, gramatical 49%, silêncio 44%) | sem memória: 0% (fato 1%, gramatical 36%)
-     por tipo, com memória: onde 20% | o quê 0% | quem 0%
-   tempo: a resposta vem no tempo da pergunta ("o que o gato come/comeu?"): 0% | sem o tempo aprendido: 0%   (0 respostas com verbo)
-4. pensando alto (4 min de silêncio): 18 falas, 67% gramaticais, 11% verdadeiras (descrevem algo que ela viu), 41% no passado (das que têm verbo)
+     com memória: 40% (fato certo 40%, gramatical 63%, silêncio 0%) | sem memória: 2% (fato 2%, gramatical 58%)
+     por tipo, com memória: onde 21% | o quê 79% | quem 90%
+   tempo: a resposta vem no tempo da pergunta ("o que o gato come/comeu?"): 96% | sem o tempo aprendido: 45%   (56 respostas com verbo)
+4. pensando alto (4 min de silêncio): 18 falas, 50% gramaticais, 33% verdadeiras (descrevem algo que ela viu), 64% no passado (das que têm verbo)
+5. sim ou não sobre a cena de 3 cenas atrás, 200 perguntas (metade falsas):
+     com o comparador: sim/não certo 88%, e com a correção certa e gramatical 48% (disse "não sei" 0%) | sem o comparador: 56% / 20%
+6. não sei: "cadê a X?" para coisas que ela só viu em livro: "não sei" em 89% (19) | para coisas que ela viu, disse "não sei" em 0% (40)
+7. negação ("o leão não está na sala": qual das duas cenas?), 0 testes: entendendo o "não" 0% | sem o comparador 0%
+8. fatos contados (ela não viu), pergunta 3 fatos depois, 48 perguntas: certa 62% | sem guardar o que ouve: 2%
+9. nomes contados por você (nomes que ela nunca ouviu), 40: o nome certo 88%, meu/seu do lado certo 88%, a frase exata 88% | sem trocar a perspectiva: 88% / 0% / 0%
+10. sentimentos: depois de ver alguém rir ou chorar, "como você está?" certo 100% (sem interocepção 38%), 60; "você está feliz/triste?" sim/não certo 100%
+    lembrar colore o humor ("cadê o X?" depois de X rir ou chorar e de 4 outras cenas): o humor vai para o lado da lembrança em 98% (média 0.24) | sem a valência na memória: 0% (0.00), 60
+11. frases que terminam (400 falas: descrições e respostas): certas 54%, emendaram 1% | sem o fechamento pelo plano: certas 67%, emendaram 3%

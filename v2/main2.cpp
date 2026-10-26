@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "childhood.hpp"
 #include "corpus.hpp"
 #include "eva2.hpp"
 
@@ -176,6 +177,10 @@ static void help() {
         "  /cena                   uma coisa acontece na frente dela e voce descreve (ela guarda o episodio)\n"
         "  /conta                  ela descreve, com as palavras dela, a ultima cena que viu\n"
         "  (perguntas)             'cadê o gato', 'o que o gato come', 'quem come o peixe': ela responde pela memoria\n"
+        "  (sim ou nao)            'o gato comeu o peixe?' (com '?'): 'sim ...', 'nao, ...' ou 'nao sei'\n"
+        "  (contar)                'o urso esta na praia', 'o meu gato chama mimi': ela guarda; depois\n"
+        "                          'cadê o urso', 'como chama o meu gato' ('o seu gato chama mimi')\n"
+        "  (sentimento)            'como você está', 'você está triste?'\n"
         "  /imaginar palavras...   a imagem que as palavras evocam nela (varias = mistura) -> imaginou.ppm\n"
         "  /olhar                  o que os olhos dela veem agora e como ela lembra cada coisa -> olhar.ppm\n"
         "  estado                  dopamina, humor, impulsos, estados, tamanho da memoria\n"
@@ -190,12 +195,7 @@ static void help() {
 // chega à conversa com vocabulário e gramática, em vez de só com o que você
 // disser. Ninguém ensina regra: ela só ouve.
 static corpus::Grammar& home_speech() { static corpus::Grammar g(7); return g; }
-static eva2::Scene scene_of(const corpus::Grammar::Event& ev) {
-    eva2::Scene s{ev.agent, ev.action, ev.patient, ev.place};
-    s.agent_many = ev.an == 'p';
-    s.patient_many = ev.pn == 'p';
-    return s;
-}
+using eva2::scene_of;
 static std::vector<std::string> g_things, g_places;
 static void collect_names() {
     std::set<std::string> got;
@@ -204,17 +204,24 @@ static void collect_names() {
     eva2::set_sprite_names(g_things);  // cada coisa com uma aparência única
 }
 static std::mt19937& view_rng() { static std::mt19937 r(101); return r; }
+// três olhares na mesma coisa durante a cena (os olhos se mexem, a coisa se mexe)
+static std::vector<eva2::Image> look(const std::string& lemma) {
+    std::vector<eva2::Image> g;
+    for (int k = 0; k < 3; ++k) g.push_back(eva2::draw_sprite(lemma, view_rng()));
+    return g;
+}
 // a cena como ela a percebe: pelos olhos (se abertos) ou como símbolos
 static eva2::Scene perceive(Eva2& e, const corpus::Grammar::Event& ev, const std::vector<std::string>& words, std::vector<eva2::Image>* shown = nullptr) {
     if (!e.eyes_open()) return scene_of(ev);
     eva2::Scene s = scene_of(ev);
-    auto a = eva2::draw_sprite(ev.agent, view_rng());
+    auto a = look(ev.agent);
     s.agent = e.see_thing(a, true, words);
-    if (shown) shown->push_back(a);
-    if (!ev.patient.empty()) { auto p = eva2::draw_sprite(ev.patient, view_rng()); s.patient = e.see_thing(p, true, words); if (shown) shown->push_back(p); }
-    auto l = eva2::draw_backdrop(ev.place, view_rng());
+    if (shown) shown->push_back(a[0]);
+    if (!ev.patient.empty()) { auto p = look(ev.patient); s.patient = e.see_thing(p, true, words); if (shown) shown->push_back(p[0]); }
+    std::vector<eva2::Image> l;
+    for (int k = 0; k < 3; ++k) l.push_back(eva2::draw_backdrop(ev.place, view_rng()));
     s.place = e.see_place(l, true, words);
-    if (shown) shown->push_back(l);
+    if (shown) shown->push_back(l[0]);
     return s;
 }
 static void open_eyes(Eva2& e) {
@@ -229,56 +236,25 @@ static void open_eyes(Eva2& e) {
     e.open_eyes(samples);
 }
 
-// Infância: ela vive momentos da casa. Às vezes só ouve alguém falar; às vezes
-// vê uma cena e ouve a descrição ("o gato come o peixe"); às vezes alguém
-// pergunta sobre a cena (agora ou depois) e responde por ela; às vezes alguém
-// conta depois o que aconteceu ("o gato comeu o peixe"). Dorme a cada 2000 momentos.
+// Infância: ela vive os momentos de uma casa (childhood.hpp): ouve falar, vê
+// cenas e ouve a descrição, perguntas e respostas (cadê, o que, quem, sim ou não),
+// livros, nomes das coisas de cada um, o que alguém conta, sentimentos. Dorme a
+// cada 2000 momentos.
 static void grow(Eva2& e, int moments, unsigned seed) {
-    auto& home = home_speech();
-    std::mt19937 r(seed);
-    std::uniform_real_distribution<double> u(0, 1);
-    std::vector<std::pair<corpus::Grammar::Event, eva2::Scene>> past;
-    const int per_day = 2000;
-    int day = 0;
-    for (int done = 0; done < moments; ++day) {
-        const int today = std::min(per_day, moments - done);
-        double surprise = 0;
-        int heard = 0;
-        for (int i = 0; i < today; ++i) {
-            const double x = u(r);
-            if (x < 0.35) { surprise += e.listen(home.sentence()); ++heard; continue; }
-            if (x >= 0.85 && past.size() > 30) {
-                std::uniform_int_distribution<size_t> back(5, 30);
-                const auto& [ev, seen_as] = past[past.size() - back(r)];
-                if (x < 0.93) {
-                    std::uniform_int_distribution<int> f(1, 2);
-                    const int field = f(r);
-                    if (home.can_ask(ev, field)) e.witness_dialogue(seen_as, home.question(ev, field, true), home.answer(ev, field, true), true);
-                } else e.recount(seen_as, home.describe(ev, true));
-                continue;
-            }
-            auto ev = home.random_event();
-            const auto words = home.describe(ev);
-            const auto sc = perceive(e, ev, words);
-            e.witness(sc, words);
-            past.push_back({ev, sc});
-            if (x >= 0.75) {
-                std::uniform_int_distribution<int> f(0, 2);
-                int field = f(r);
-                if (!home.can_ask(ev, field)) field = 0;
-                e.witness_dialogue(sc, home.question(ev, field), home.answer(ev, field));
-            }
-        }
-        done += today;
-        e.sleep(300);
+    auto see = [](Eva2& ev2, const corpus::Grammar::Event& ev, const std::vector<std::string>& words, bool) { return perceive(ev2, ev, words); };
+    auto see_thing = [](Eva2& ev2, const std::string& lemma, const std::vector<std::string>& words) {
+        return ev2.eyes_open() ? ev2.see_thing(look(lemma), true, words) : lemma;
+    };
+    eva2::Childhood life(home_speech(), seed, see, see_thing);
+    life.live(e, moments, [&](int day, int today, int done) {
         size_t words = 0;
         for (size_t k = 0; k < e.vocab().words.size(); ++k) words += !eva2::Vocabulary::internal(e.vocab().words[k]);
-        std::printf("        dia %d: %d momentos (total %d); surpresa média %.2f; %zu palavras, %zu com categoria; %zu episódios%s; %.1f mi de sinapses\n",
-                    day + 1, today, done, heard ? surprise / heard : 0.0, words, e.categories().words_with_code(), e.episodes().size(),
+        std::printf("        dia %d: %d momentos (total %d); %zu palavras, %zu com categoria; %zu episódios, %zu fatos%s; %.1f mi de sinapses\n",
+                    day, today, done, words, e.categories().words_with_code(), e.episodes().size(), e.facts().size(),
                     e.eyes_open() ? (", " + std::to_string(e.thing_concepts()) + " conceitos visuais").c_str() : "",
                     (e.cortex().n_synapses() + e.category_cortex().n_synapses()) / 1e6);
         std::fflush(stdout);
-    }
+    });
 }
 
 static void show_category(const Eva2& e, const std::string& w) {
@@ -393,7 +369,8 @@ static void converse(bool fresh, bool big, int childhood, bool eyes) {
             std::printf("         (ela vê: %s %s %s%s%s; você diz: \"", ev.agent.c_str(), ev.action.c_str(), ev.patient.c_str(),
                         ev.place.empty() ? "" : ", em ", ev.place.c_str());
             for (size_t i = 0; i < words.size(); ++i) std::printf("%s%s", i ? " " : "", words[i].c_str());
-            std::printf("\")%s\n", shown.empty() ? "" : " (o que os olhos viram: cena.ppm)");
+            std::printf("\")%s%s\n", shown.empty() ? "" : " (o que os olhos viram: cena.ppm)",
+                        e.feeling() >= 0.25f ? " (ela está alegre)" : e.feeling() <= -0.25f ? " (ela está triste)" : "");
             continue;
         }
         if (w[0] == "/conta") {
@@ -415,19 +392,25 @@ static void converse(bool fresh, bool big, int childhood, bool eyes) {
             continue;
         }
         if (w[0] == "estado") {
-            std::printf("        dopamina %.2f | humor %.2f | vontade de falar %.2f | curiosidade %.2f | estados:",
-                        e.dopamine(), e.mood(), e.drives().talk, e.drives().curiosity);
+            std::printf("        dopamina %.2f | humor %.2f | sentimento %+.2f | vontade de falar %.2f | curiosidade %.2f | estados:",
+                        e.dopamine(), e.mood(), e.feeling(), e.drives().talk, e.drives().curiosity);
             auto st = e.active_states();
             if (st.empty()) std::printf(" (nenhum)");
             for (auto& s : st) std::printf(" %s", s.c_str());
-            std::printf("\n        palavras %zu (%zu com categoria) | segmentos %d | sinapses %.2f mi (palavras) + %.2f mi (categorias) | turnos %zu\n",
+            std::printf("\n        palavras %zu (%zu com categoria) | segmentos %d | sinapses %.2f mi (palavras) + %.2f mi (categorias) | turnos %zu | episódios %zu | fatos %zu\n",
                         e.vocab().words.size(), e.categories().words_with_code(), e.segments(),
-                        e.cortex().n_synapses() / 1e6, e.category_cortex().n_synapses() / 1e6, e.turns());
+                        e.cortex().n_synapses() / 1e6, e.category_cortex().n_synapses() / 1e6, e.turns(), e.episodes().size(), e.facts().size());
             continue;
         }
         float reward = 0.0f;
         if (w.back() == "!") { reward = 1.0f; w.pop_back(); }
         if (w.empty()) continue;
+        // "?" no fim: a voz sobe (pergunta de sim ou não, se nenhuma palavra disser outra coisa)
+        bool asks = false;
+        if (w.back() == "?") { asks = true; w.pop_back(); }
+        else if (w.back().size() > 1 && w.back().back() == '?') { asks = true; w.back().pop_back(); }
+        if (w.empty()) continue;
+        if (asks) w.push_back(Eva2::kAsk);
         hear(e, w, reward, false);
     }
     if (e.save()) std::printf("        (memoria salva)\n");

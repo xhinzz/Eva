@@ -1,0 +1,27 @@
+fonte: Universal Dependencies (/tmp/claude-0/-home-claude/544fb7c7-6a5a-5221-84af-b118179e7c2a/scratchpad/ud/UD_Portuguese-GSD/pt_gsd-ud-train.conllu,/tmp/claude-0/-home-claude/544fb7c7-6a5a-5221-84af-b118179e7c2a/scratchpad/ud/UD_Portuguese-Bosque/pt_bosque-ud-train.conllu)
+ouvir: 6622 frases (63358 palavras, 14368 diferentes); teste: 300 frases novas
+cérebro: normal (2048 colunas de palavras x 16 células)
+  2000 frases: 32 palavras/s, 27.9 mi de sinapses, 536186 segmentos, RAM 456 MB
+  4000 frases: 19 palavras/s, 45.1 mi de sinapses, 900268 segmentos, RAM 676 MB
+  6000 frases: 18 palavras/s, 57.4 mi de sinapses, 1183090 segmentos, RAM 896 MB
+  6622 frases: 16 palavras/s, 61.5 mi de sinapses, 1268880 segmentos, RAM 927 MB
+  "ver também ..." -> ela continua: "o resultado de dezembro de janeiro"   (a frase real: "ver também a lista de entidades que tenham emitido selos postais")
+  "a nina ..." -> ela continua: ""   (a frase real: "a nina é a chance dele ser feliz")
+  "é um ..." -> ela continua: "dos valores"   (a frase real: "é um dos três ácidos ftálicos isoméricos")
+  "o incidente ..." -> ela continua: ""   (a frase real: "o incidente ocorreu na cidade de burgas 400 quilômetros ao leste da capital búlgara sofia")
+  "o couro ..." -> ela continua: ""   (a frase real: "o couro do peixe sempre rende conta")
+  "os cuidados ..." -> ela continua: ""   (a frase real: "os cuidados de sempre estão sendo tomados pelo consumidor")
+  "o salto ..." -> ela continua: "triplo"   (a frase real: "o salto dá um up no visual")
+  "na máxima ..." -> ela continua: "prevista é o alemão"   (a frase real: "na máxima do dia o papel alcançou uma valorização de até 5,7")
+  "eles não ..." -> ela continua: "é suficiente"   (a frase real: "eles não podem ser considerados marginais disse ele")
+  "não podemos ..." -> ela continua: "nos últimos 15 anos"   (a frase real: "não podemos fazer outra coisa que sair às ruas")
+  "para o ..." -> ela continua: "que o final de dezembro de janeiro"   (a frase real: "para o planejamento as áreas prioritárias serão educação saúde e segurança pública")
+  "dois anos ..." -> ela continua: ""   (a frase real: "dois anos depois ele foi preso e eu nunca o vi novamente")
+
+1. a próxima palavra em frases novas (2874 posições):
+     ela (córtex + gramática)         palavra certa   3.1% | classe certa  18.6%
+     ela sem a gramática na fala       palavra certa   3.3% | classe certa  23.0%
+     bigrama (a que mais veio depois)   palavra certa   7.1% | classe certa  20.3%
+     a palavra mais comum               palavra certa   3.8% | classe certa   9.6%
+2. espécies: palavras ouvidas 30+ vezes com categoria: 191; o vizinho mais parecido tem a mesma classe: 23% (acaso 10%)
+3. escala: 14721 palavras no vocabulário, 61.5 mi de sinapses (31.1 nas palavras, 30.4 nas categorias), 1268880 segmentos, RAM 927 MB, 5998 s ao todo

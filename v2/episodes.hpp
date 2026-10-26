@@ -21,6 +21,7 @@
 #pragma once
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -32,25 +33,33 @@ namespace eva2 {
 struct Scene {
     std::string agent, action, patient, place;  // ex.: "gato", "come", "peixe", "cozinha"
     bool agent_many = false, patient_many = false;  // um ou muitos (ela vê quantos são)
+    float valence = 0.0f;  // como foi (-1 ruim .. +1 bom): o choro, o riso, a cara de quem faz
 };
 
 enum Role { kAgent = 0, kAction = 1, kPatient = 2, kPlace = 3, kRoles = 4 };
-inline const char* role_name(int r) { static const char* n[] = {"quem faz", "ação", "alvo", "lugar"}; return n[r]; }
+// O que uma pergunta pode pedir: um papel da cena, ou se é verdade (sim/não),
+// um nome ("como chama"), um sentimento ("como você está")
+enum Ask { kTruth = 4, kName = 5, kFeeling = 6, kAskKinds = 7 };
+inline const char* role_name(int r) { static const char* n[] = {"quem faz", "ação", "alvo", "lugar", "se é verdade", "nome", "sentimento"}; return n[r]; }
 
 struct Episode {
     Scene scene;
     double time = 0;
     float salience = 0.5f;  // dopamina do momento
+    float valence = 0.0f;   // como ela se sentiu (o que lembrar traz de volta)
+    bool heard = false;     // contado por alguém, não visto
 };
 
 class EpisodicMemory {
 public:
-    void store(const Scene& s, double time, float salience) {
-        episodes_.push_back({s, time, salience});
+    void store(const Scene& s, double time, float salience, float valence = 0.0f, bool heard = false) {
+        episodes_.push_back({s, time, salience, valence, heard});
         if (episodes_.size() > max_) episodes_.erase(episodes_.begin());
     }
     // Pista parcial -> episódio. Cada papel da pista que bate soma; o mais
     // recente vence entre os que batem igual (o hipocampo completa o padrão).
+    // (Antes a força do momento desempatava, e uma lembrança antiga e forte
+    // passava por cima de uma nova: "o que a moça come?" -> o de antes.)
     // `need` = papel que a lembrança precisa ter preenchido.
     const Episode* recall(const Scene& cue, int need) const {
         const Episode* best = nullptr;
@@ -69,16 +78,17 @@ public:
             cmp(cue.action, s.action);
             cmp(cue.patient, s.patient);
             if (clash || score == 0) continue;
-            score += 0.1 * it->salience;
+            // o que mais combina vence; entre os que combinam igual, o mais recente
+            // (a força do momento não passa por cima do que aconteceu depois)
             if (score > best_score + 1e-9) { best_score = score; best = &*it; }
         }
         return best;
     }
-    // Para lembrar sozinha: um episódio marcante e recente
+    // Para lembrar sozinha: um episódio marcante e recente (o que mexeu com ela, bom ou ruim, volta mais)
     const Episode* salient(double now, double u01) const {
         if (episodes_.empty()) return nullptr;
         std::vector<double> w;
-        for (const auto& e : episodes_) w.push_back(e.salience / (1.0 + std::max(0.0, now - e.time) / 600000.0));
+        for (const auto& e : episodes_) w.push_back(e.salience * (1.0 + std::fabs(e.valence)) / (1.0 + std::max(0.0, now - e.time) / 600000.0));
         double total = 0;
         for (double x : w) total += x;
         double r = u01 * total;
@@ -104,10 +114,12 @@ public:
         out.write(reinterpret_cast<const char*>(&n), sizeof n);
         for (const auto& e : episodes_) {
             for (const auto* f : {&e.scene.agent, &e.scene.action, &e.scene.patient, &e.scene.place}) wstr(out, *f);
-            const uint8_t many = (e.scene.agent_many ? 1 : 0) | (e.scene.patient_many ? 2 : 0);
+            const uint8_t many = (e.scene.agent_many ? 1 : 0) | (e.scene.patient_many ? 2 : 0) | (e.heard ? 4 : 0);
             out.write(reinterpret_cast<const char*>(&many), 1);
             out.write(reinterpret_cast<const char*>(&e.time), sizeof e.time);
             out.write(reinterpret_cast<const char*>(&e.salience), sizeof e.salience);
+            out.write(reinterpret_cast<const char*>(&e.valence), sizeof e.valence);
+            out.write(reinterpret_cast<const char*>(&e.scene.valence), sizeof e.scene.valence);
         }
     }
     template <class In> bool load(In& in) {
@@ -118,9 +130,11 @@ public:
             for (auto* f : {&e.scene.agent, &e.scene.action, &e.scene.patient, &e.scene.place}) *f = rstr(in);
             uint8_t many = 0;
             in.read(reinterpret_cast<char*>(&many), 1);
-            e.scene.agent_many = many & 1; e.scene.patient_many = many & 2;
+            e.scene.agent_many = many & 1; e.scene.patient_many = many & 2; e.heard = many & 4;
             in.read(reinterpret_cast<char*>(&e.time), sizeof e.time);
             in.read(reinterpret_cast<char*>(&e.salience), sizeof e.salience);
+            in.read(reinterpret_cast<char*>(&e.valence), sizeof e.valence);
+            in.read(reinterpret_cast<char*>(&e.scene.valence), sizeof e.scene.valence);
         }
         return static_cast<bool>(in);
     }
@@ -177,20 +191,32 @@ private:
 class QuestionWords {
 public:
     void bind(const std::string& w, int role) { auto& c = count_[w]; c[role] += 1.0; }
-    // o papel que a pergunta pede, e quão segura ela está (0..1)
-    std::pair<int, double> asks(const std::vector<std::string>& words, double min_count = 3.0) const {
+    // em quantas perguntas ouvidas a palavra apareceu (entendendo a resposta ou não)
+    void note(const std::vector<std::string>& question) {
+        std::vector<std::string> seen;
+        for (const auto& w : question) if (std::find(seen.begin(), seen.end(), w) == seen.end()) { seen.push_back(w); seen_[w] += 1.0; }
+    }
+    double in_questions(const std::string& w) const { auto it = seen_.find(w); return it == seen_.end() ? 0.0 : it->second; }
+    // o que a pergunta pede, e quão segura ela está (0..1). A entonação (`weak`,
+    // a subida no fim: "<?>") só decide se nenhuma palavra decide: "cadê o gato?"
+    // pede um lugar, mesmo com a voz subindo.
+    std::pair<int, double> asks(const std::vector<std::string>& words, double min_count = 3.0, const std::string& weak = "", double need = 0.7) const {
         int best = -1; double bp = 0;
-        for (const auto& w : words) {
-            auto it = count_.find(w);
-            if (it == count_.end()) continue;
-            double tot = 0;
-            for (double x : it->second) tot += x;
-            if (tot < min_count) continue;
-            for (int r = 0; r < kRoles; ++r) if (it->second[r] / tot > bp) { bp = it->second[r] / tot; best = r; }
+        for (int pass = 0; pass < 2; ++pass) {
+            for (const auto& w : words) {
+                if ((w == weak) != (pass == 1)) continue;
+                auto it = count_.find(w);
+                if (it == count_.end()) continue;
+                double tot = 0;
+                for (double x : it->second) tot += x;
+                if (tot < min_count) continue;
+                for (int r = 0; r < kAskKinds; ++r) if (it->second[r] / tot > bp) { bp = it->second[r] / tot; best = r; }
+            }
+            if (bp >= need) break;
         }
         return {best, bp};
     }
-    const std::map<std::string, std::array<double, kRoles>>& counts() const { return count_; }
+    const std::map<std::string, std::array<double, kAskKinds>>& counts() const { return count_; }
     template <class Out> void save(Out& out) const {
         const uint32_t n = static_cast<uint32_t>(count_.size());
         out.write(reinterpret_cast<const char*>(&n), sizeof n);
@@ -199,6 +225,14 @@ public:
             out.write(reinterpret_cast<const char*>(&l), sizeof l);
             out.write(w.data(), l);
             out.write(reinterpret_cast<const char*>(c.data()), sizeof c);
+        }
+        const uint32_t m = static_cast<uint32_t>(seen_.size());
+        out.write(reinterpret_cast<const char*>(&m), sizeof m);
+        for (const auto& [w, v] : seen_) {
+            const uint32_t l = static_cast<uint32_t>(w.size());
+            out.write(reinterpret_cast<const char*>(&l), sizeof l);
+            out.write(w.data(), l);
+            out.write(reinterpret_cast<const char*>(&v), sizeof v);
         }
     }
     template <class In> bool load(In& in) {
@@ -211,14 +245,74 @@ public:
             if (l > 4096) return false;
             std::string w(l, ' ');
             in.read(w.data(), l);
-            std::array<double, kRoles> c{};
+            std::array<double, kAskKinds> c{};
             in.read(reinterpret_cast<char*>(c.data()), sizeof c);
             count_[w] = c;
+        }
+        uint32_t m = 0;
+        in.read(reinterpret_cast<char*>(&m), sizeof m);
+        seen_.clear();
+        for (uint32_t i = 0; i < m && in; ++i) {
+            uint32_t l = 0;
+            in.read(reinterpret_cast<char*>(&l), sizeof l);
+            if (l > 4096) return false;
+            std::string w(l, ' ');
+            in.read(w.data(), l);
+            double v = 0;
+            in.read(reinterpret_cast<char*>(&v), sizeof v);
+            seen_[w] = v;
         }
         return static_cast<bool>(in);
     }
 private:
-    std::map<std::string, std::array<double, kRoles>> count_;
+    std::map<std::string, std::array<double, kAskKinds>> count_;
+    std::map<std::string, double> seen_;
+};
+
+// Fatos que ela ouviu (não viu): de quem é o quê e como chama. "o meu gato chama
+// mimi", dito por você, vira {dono: você, coisa: gato, nome: mimi}. O dono é
+// guardado como pessoa (você, ela, a mamãe), não como palavra: "meu" muda de
+// dono conforme quem fala.
+struct Fact { std::string owner, thing, name; double time = 0; };
+class FactMemory {
+public:
+    void store(const Fact& f) { facts_.push_back(f); }
+    const Fact* recall(const std::string& owner, const std::string& thing) const {
+        for (auto it = facts_.rbegin(); it != facts_.rend(); ++it) if (it->owner == owner && it->thing == thing) return &*it;
+        return nullptr;
+    }
+    size_t size() const { return facts_.size(); }
+    const std::vector<Fact>& all() const { return facts_; }
+    template <class Out> void save(Out& out) const {
+        const uint32_t n = static_cast<uint32_t>(facts_.size());
+        out.write(reinterpret_cast<const char*>(&n), sizeof n);
+        for (const auto& f : facts_) {
+            for (const auto* s : {&f.owner, &f.thing, &f.name}) {
+                const uint32_t l = static_cast<uint32_t>(s->size());
+                out.write(reinterpret_cast<const char*>(&l), sizeof l);
+                out.write(s->data(), l);
+            }
+            out.write(reinterpret_cast<const char*>(&f.time), sizeof f.time);
+        }
+    }
+    template <class In> bool load(In& in) {
+        uint32_t n = 0;
+        if (!in.read(reinterpret_cast<char*>(&n), sizeof n)) return false;
+        facts_.assign(n, {});
+        for (auto& f : facts_) {
+            for (auto* s : {&f.owner, &f.thing, &f.name}) {
+                uint32_t l = 0;
+                in.read(reinterpret_cast<char*>(&l), sizeof l);
+                if (l > 4096) return false;
+                s->assign(l, ' ');
+                in.read(s->data(), l);
+            }
+            in.read(reinterpret_cast<char*>(&f.time), sizeof f.time);
+        }
+        return static_cast<bool>(in);
+    }
+private:
+    std::vector<Fact> facts_;
 };
 
 }  // namespace eva2

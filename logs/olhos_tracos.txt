@@ -1,0 +1,16 @@
+202 coisas, cada uma com forma, cores e marcas próprias; cada vista muda de lugar (até 2 pixels) e de tom
+
+1. reconhecer (vizinho mais próximo, 6 vistas de cada):
+   1 olhar  , só V1 (bordas e cores por zona)   reconhece  83% | parecença: mesma coisa 0.73, outra coisa 0.33
+   1 olhar  , V1 + V4 (cor e forma da coisa)     reconhece  87% | parecença: mesma coisa 0.68, outra coisa 0.25
+   1 olhar  , só V4                             reconhece  70% | parecença: mesma coisa 0.67, outra coisa 0.09
+   3 olhares, só V1 (bordas e cores por zona)   reconhece  97% | parecença: mesma coisa 0.87, outra coisa 0.38
+   3 olhares, V1 + V4 (cor e forma da coisa)     reconhece  97% | parecença: mesma coisa 0.84, outra coisa 0.28
+   3 olhares, só V4                             reconhece  90% | parecença: mesma coisa 0.80, outra coisa 0.11
+
+2. formar conceitos sem nome (V1 + V4, 3 olhares, 2000 aparições):
+   limiar 0.60: 183 conceitos | a mesma coisa cai no mesmo conceito  95% | coisas com um conceito só delas  60%
+   limiar 0.65: 213 conceitos | a mesma coisa cai no mesmo conceito  94% | coisas com um conceito só delas  73%
+   limiar 0.70: 254 conceitos | a mesma coisa cai no mesmo conceito  91% | coisas com um conceito só delas  84%
+   limiar 0.75: 314 conceitos | a mesma coisa cai no mesmo conceito  87% | coisas com um conceito só delas  95%
+   limiar 0.80: 404 conceitos | a mesma coisa cai no mesmo conceito  82% | coisas com um conceito só delas  96%

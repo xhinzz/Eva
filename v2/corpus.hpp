@@ -28,7 +28,7 @@
 
 namespace corpus {
 
-enum Pos { DET, INDEF, NOUN, ADJ, COP, EST, LOC, DE, VI, VINF, COME, GOSTA, QUER, VE, LIT };
+enum Pos { DET, INDEF, NOUN, ADJ, COP, EST, LOC, DE, VI, VINF, COME, GOSTA, QUER, VE, LIT, POSS, NAME, CHAMA };
 enum Sem { ANIMAL = 1, PERSON = 2, FOOD = 4, OBJECT = 8, PLACE = 16 };
 constexpr int ANIM = ANIMAL | PERSON;
 constexpr int THING = ANIMAL | PERSON | FOOD | OBJECT;  // tudo menos lugar
@@ -43,6 +43,7 @@ struct Entry {
     std::string lemma;
     bool held = false;  // retido: só como objeto
     char tense = '*';   // verbos: p (presente), a (passado)
+    char person = '*';  // possessivos: f (de quem fala: meu), o (de quem ouve: seu)
 };
 
 // Uma posição de um molde de frase
@@ -158,6 +159,7 @@ public:
         Kind kind = AT;
         std::string agent, action, patient, place;  // lemas (singular); ação = forma singular do verbo
         char an = 's', pn = 's';                    // número do agente e do alvo
+        float valence = 0.0f;                       // como foi: chorar, cair (ruim); rir, brincar (bom)
     };
     Event random_event() {
         Event e;
@@ -177,8 +179,96 @@ public:
         }
         if (!has_form(e.patient, e.pn)) e.pn = 's';
         if (!has_form(e.agent, e.an)) e.an = 's';
+        e.valence = valence_of(e);
         return e;
     }
+    static float valence_of(const Event& e) {
+        static const std::set<std::string> good{"brinca", "ri", "dança", "canta", "pula", "sorri", "nada", "voa"};
+        static const std::set<std::string> bad{"chora", "cai", "grita", "tosse", "espirra"};
+        if (e.kind == INTRANS) return good.count(e.action) ? 0.8f : bad.count(e.action) ? -0.8f : 0.0f;
+        if (e.kind == EAT) return 0.3f;
+        if (e.kind == LIKE) return 0.3f;
+        return 0.0f;
+    }
+    // Coisas que ela só conhece dos livros ("olha a girafa"): nunca aparecem nas
+    // cenas da casa. Fixas (pelo nome), para todas as gramáticas concordarem.
+    static bool book_only(const std::string& lemma) {
+        unsigned h = 2166136269u;
+        for (unsigned char c : lemma) h = (h ^ c) * 16777619u;
+        return h % 10 == 0;
+    }
+    std::vector<std::string> book_things() const {
+        std::vector<std::string> out;
+        for (const auto& e : lex_) if (e.pos == NOUN && e.n == 's' && (e.sem & THING) && book_only(e.lemma)) out.push_back(e.lemma);
+        return out;
+    }
+    // ---------------------------------------------------------------- sim, não, não sei
+    // a mesma cena com outra coisa no lugar do alvo (ou outro lugar): o que NÃO aconteceu
+    Event altered(const Event& e) {
+        Event x = e;
+        if (e.kind == AT) { do { x.place = pick_lemma(NOUN, PLACE); } while (x.place == e.place); }
+        else if (e.kind == EAT) { do { x.patient = pick_lemma(NOUN, FOOD); } while (x.patient == e.patient); }
+        else if (e.kind == SEE || e.kind == LIKE) { do { x.patient = pick_lemma(NOUN, THING); } while (x.patient == e.patient || x.patient == e.agent); }
+        if (!has_form(x.patient, x.pn)) x.pn = 's';
+        return x;
+    }
+    bool can_alter(const Event& e) const { return e.kind != INTRANS; }
+    // pergunta de sim ou não: a frase com a voz subindo no fim ("o gato comeu o peixe?")
+    std::vector<std::string> yes_no(const Event& claim, bool past = false) const {
+        auto s = describe(claim, past && claim.kind != AT);
+        s.push_back("<?>");
+        return s;
+    }
+    // a resposta: "sim, o gato comeu o peixe" / "não, o gato comeu o pão"
+    std::vector<std::string> yes_no_answer(const Event& truth, bool yes, bool past = false) const {
+        auto s = describe(truth, past && truth.kind != AT);
+        s.insert(s.begin(), yes ? "sim" : "não");
+        return s;
+    }
+    // negação: "o gato não está na sala"
+    std::vector<std::string> negated(const Event& claim, bool past = false) const {
+        auto s = describe(claim, past && claim.kind != AT);
+        s.insert(s.begin() + 2, "não");  // depois de "o gato"
+        return s;
+    }
+    // ---------------------------------------------------------------- nomes, meu e seu
+    static std::vector<std::string> pet_names() {
+        return split("rex mimi totó lili bob nina fred lola tico bela max kiki dudu zeca pipo nino luna teco bibi juju "
+                     "faísca pingo pituca bolinha xodó");
+    }
+    // possessivo que concorda com a coisa (singular): de quem fala (meu/minha) ou de quem ouve (seu/sua)
+    std::string poss(const std::string& lemma, bool speaker) const {
+        const char g = gender(lemma);
+        return speaker ? (g == 'm' ? "meu" : "minha") : (g == 'm' ? "seu" : "sua");
+    }
+    // "o meu gato chama mimi"
+    std::vector<std::string> named(const std::string& thing, bool speaker_owns, const std::string& name) const {
+        auto s = np(thing, 's');
+        s.insert(s.begin() + 1, poss(thing, speaker_owns));
+        s.push_back("chama"); s.push_back(name);
+        return s;
+    }
+    // "como chama o seu gato"
+    std::vector<std::string> ask_name(const std::string& thing, bool speaker_owns) const {
+        std::vector<std::string> s{"como", "chama"};
+        auto o = np(thing, 's');
+        o.insert(o.begin() + 1, poss(thing, speaker_owns));
+        s.insert(s.end(), o.begin(), o.end());
+        return s;
+    }
+    // coisas que alguém da casa pode ter e que têm nome (bichos e brinquedos)
+    std::vector<std::string> nameable() const {
+        std::vector<std::string> out;
+        for (const auto& e : lex_) if (e.pos == NOUN && e.n == 's' && (e.sem & (ANIMAL | OBJECT)) && !book_only(e.lemma)) out.push_back(e.lemma);
+        return out;
+    }
+    // ---------------------------------------------------------------- sentimentos
+    // "você está feliz", "eu estou triste"
+    static std::vector<std::string> feeling(bool speaker, bool happy) {
+        if (speaker) return {"eu", "estou", happy ? "feliz" : "triste"};
+        return {"você", "está", happy ? "feliz" : "triste"};
+    }
+    static std::vector<std::string> ask_feeling() { return {"como", "você", "está"}; }
     // a frase que descreve a cena
     // (past: contando depois o que aconteceu: "o gato comeu o peixe")
     std::vector<std::string> describe(const Event& e, bool past = false) const {
@@ -239,7 +329,7 @@ public:
         auto it = by_word_.find(w);
         if (it == by_word_.end()) return "?";
         const Entry& e = lex_[it->second.front()];
-        static const char* names[] = {"DET", "INDEF", "N", "ADJ", "COP", "EST", "LOC", "DE", "VI", "VINF", "COME", "GOSTA", "QUER", "VE", "LIT"};
+        static const char* names[] = {"DET", "INDEF", "N", "ADJ", "COP", "EST", "LOC", "DE", "VI", "VINF", "COME", "GOSTA", "QUER", "VE", "LIT", "POSS", "NAME", "CHAMA"};
         std::string g = names[e.pos];
         if (e.pos == LIT) return "LIT:" + w;
         if (e.pos == NOUN || e.pos == ADJ || e.pos == DET || e.pos == INDEF || e.pos == LOC || e.pos == DE) g += std::string("_") + e.g;
@@ -251,7 +341,7 @@ public:
         auto it = by_word_.find(w);
         if (it == by_word_.end()) return "?";
         const Entry& e = lex_[it->second.front()];
-        static const char* names[] = {"DET", "INDEF", "N", "ADJ", "COP", "EST", "LOC", "DE", "VI", "VINF", "COME", "GOSTA", "QUER", "VE", "LIT"};
+        static const char* names[] = {"DET", "INDEF", "N", "ADJ", "COP", "EST", "LOC", "DE", "VI", "VINF", "COME", "GOSTA", "QUER", "VE", "LIT", "POSS", "NAME", "CHAMA"};
         return e.pos == LIT ? "LIT:" + w : names[e.pos];
     }
 
@@ -261,6 +351,7 @@ private:
         for (int i = 0; i < static_cast<int>(lex_.size()); ++i) {
             const Entry& e = lex_[i];
             if (e.pos != pos || e.n == 'p' || e.tense == 'a') continue;
+            if (pos == NOUN && sem != PLACE && book_only(e.lemma)) continue;  // só dos livros: nunca numa cena
             if (sem && !(e.sem & sem)) continue;
             ids.push_back(i); w.push_back(weight_[i]);
         }
@@ -468,7 +559,14 @@ private:
         lex_.push_back({"no", LOC, 'm', 's'}); lex_.push_back({"na", LOC, 'f', 's'});
         lex_.push_back({"do", DE, 'm', 's'}); lex_.push_back({"da", DE, 'f', 's'});
         lex_.push_back({"dos", DE, 'm', 'p'}); lex_.push_back({"das", DE, 'f', 'p'});
-        for (auto s : split("eu você vejo gosto quero cadê olha vamos muito de que quem")) lit(s);
+        for (auto s : split("eu você vejo gosto quero cadê olha vamos muito de que quem sim não sei como estou")) lit(s);
+        for (const char* w : {"meu", "minha", "seu", "sua"}) {
+            Entry e{w, POSS, (w[0] == 'm' && w[1] == 'e') || (w[0] == 's' && w[1] == 'e') ? 'm' : 'f', 's'};
+            e.person = w[0] == 'm' ? 'f' : 'o';
+            lex_.push_back(e);
+        }
+        for (const auto& n : pet_names()) lex_.push_back({n, NAME, '*', 's', 0, n});
+        add_verb(CHAMA, "chama", "chamam");
         // "quer" também é literal em "você quer"; já está como QUER singular
     }
 
@@ -497,10 +595,18 @@ private:
             {"N quer VERBO", {S(DET, 0, 0), subj(ANIM), S(QUER, -1, 0), S(VINF)}, 3},
             {"N vê N", {S(DET, 0, 0), subj(ANIM), S(VE, -1, 0), S(DET, 1, 1), S(NOUN, 1, 1, THING)}, 3},
             {"olha N", {L("olha"), S(DET, 0, 0), S(NOUN, 0, 0, THING)}, 4},
+            // só verificação (peso 0): estas vêm nos momentos próprios (nomes, sentimentos, não sei)
+            {"o meu N chama NOME", {S(DET, 0, 0), S(POSS, 0, 0), S(NOUN, 0, 0, ANIMAL | OBJECT), S(CHAMA, -1, 0), S(NAME)}, 0},
+            {"como chama o meu N", {L("como"), S(CHAMA, -1, 0), S(DET, 0, 0), S(POSS, 0, 0), S(NOUN, 0, 0, ANIMAL | OBJECT)}, 0},
+            {"eu estou ADJ", {L("eu"), L("estou"), S(ADJ, -1, 0)}, 0},
+            {"você está ADJ", {L("você"), S(EST, -1, 0), S(ADJ, -1, 0)}, 0},
+            {"não sei", {L("não"), L("sei")}, 0},
         };
         // "você quer" e "é um N": singular
         for (auto& p : patterns_) if (p.name == "você quer COMIDA") p.slots[1].fixn = 's';
         for (auto& p : patterns_) if (p.name == "é um N") for (auto& sl : p.slots) sl.fixn = 's';
+        for (auto& p : patterns_) if (p.name == "o meu N chama NOME" || p.name == "como chama o meu N" || p.name == "eu estou ADJ" || p.name == "você está ADJ")
+            for (auto& sl : p.slots) sl.fixn = 's';
     }
 
     std::mt19937 rng_;

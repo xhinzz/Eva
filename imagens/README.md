@@ -13,3 +13,4 @@ Todas geradas pela Eva (PPM convertido para PNG, ampliado sem suavização).
 | `gramatica_curva.png` | curva de aprendizado da gramática (dados de `logs/grammar.txt`): sujeitos retidos e conhecidos, com e sem a gramática |
 | `olhos_coisas.png` | cenas pelos olhos: 12 das 202 coisas da casa como os olhos dela recebem (cada uma com forma, cores e marcas próprias) |
 | `olhos_vistas.png` | o mesmo gato visto seis vezes (posição e tom mudam) e quatro lugares (fundos) |
+| `olhos_olhares.png` | três olhares em quatro coisas (gato, urso, bolacha, barata): cada olhar muda de lugar e de tom; ela junta os três numa descrição só |

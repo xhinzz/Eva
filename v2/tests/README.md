@@ -12,12 +12,14 @@ Todos os testes compilam junto com o resto:
 | `eva2_vision_test` | só o córtex visual: erro de V1, erro de imaginação, sobreposição de códigos; escreve `ve/v1/imagina/mistura.ppm` | `./build/eva2_vision_test` |
 | `eva2_categories_test` | só as categorias (segundos): o vizinho mais parecido de cada palavra é da mesma classe? | `V=1 ./build/eva2_categories_test 20000` |
 | `eva2_topic` | falar sobre o assunto: depois de uma infância, responde frases novas; no assunto, gramatical, eco, com e sem o tema | `CACHE=cerebro.bin V=1 ./build/eva2_topic 10000 300` (`ECO=1` liga a imitação, `GAIN` o peso do tema, `SHARP` a competição entre intenções) |
-| `eva2_scenes` | cenas: compreensão de quem faz o quê, descrição, quantidade, perguntas pela memória (presente e passado), lembranças espontâneas (com e sem cada peça) | `CACHE=cerebro.bin V=1 ./build/eva2_scenes 10000 200` (momentos da infância, testes) |
+| `eva2_scenes` | cenas e conversa: quem faz o quê, descrição, quantidade, perguntas pela memória (presente e passado), lembranças, sim ou não, não sei, negação, fatos contados, nomes com meu/seu, sentimentos, frases que terminam (com e sem cada peça; os testes 8 a 10 partem do mesmo cérebro, com CACHE) | `CACHE=cerebro.bin V=1 ./build/eva2_scenes 10000 200` (momentos da infância, testes) |
+| `eva2_real` | português real: ouve frases reais (Universal Dependencies em CoNLL-U, ou CHILDES em CHAT) e prevê a próxima palavra em frases novas; espécies contra as classes anotadas; escala | `TRAIN=a.conllu,b.conllu TEST=c.conllu V=1 ./build/eva2_real 8000 300` ou `CHAT=pasta ./build/eva2_real 20000 300` (`BIG=1`: cérebro grande) |
+| `eva2_eyes_features` | só os olhos: reconhecer as 202 coisas (1 ou 3 olhares; V1, V1+V4, V4) e formar conceitos sem nome | `./build/eva2_eyes_features` |
 | `eva2_grammar` | gramática emergente: dias de fala de uma casa + sono; continua frases com sujeitos que nunca ouviu como sujeito | `V=1 ./build/eva2_grammar 10 2000 300 2` (dias, frases/dia, episódios de sono, sementes) |
 
 Variáveis de ambiente úteis no `eva2_grammar`: `CAT=0` (sem categorias: nem aprende),
 `FRESH=0/1` (contexto novo depois de surpresa no córtex de categorias), `MATCH`, `OVERRIDE`,
-`CCOLS`, `CACT`, `MORPH`, `CTXW`, `COLS`, `CELLS`, `CCELLS`. No `eva2_scenes`: `EYES=1` (as cenas chegam como imagens pelos olhos; o relatório mostra quantos conceitos visuais ela formou e se a mesma coisa cai no mesmo conceito), `CONCEPT` (limiar de semelhança para cair num conceito visual, padrão 0,8) e `LABEL` (limiar quando a palavra ouvida já tem um conceito, padrão 0,25). No `eva2_categories_test`: `FAN`,
+`CCOLS`, `CACT`, `MORPH`, `CTXW`, `COLS`, `CELLS`, `CCELLS`. No `eva2_scenes`: `EYES=1` (as cenas chegam como imagens pelos olhos; o relatório mostra quantos conceitos visuais ela formou e se a mesma coisa cai no mesmo conceito), `CONCEPT` (limiar de semelhança para cair num conceito visual, padrão 0,8) e `LABEL` (limiar quando a palavra ouvida já tem um conceito, padrão 0,25) e `GLANCES` (olhares em cada coisa por cena, padrão 3). No `eva2_categories_test`: `FAN`,
 `ACT`, `CTXW`, `MORPH`, `MINC`. No `eva2_bench`: `CAT`, `MINC`, `DEC`, `INIT`.
 
 O corpus (`v2/corpus.hpp`) é uma gramática do português falado com criança: ~770 palavras,

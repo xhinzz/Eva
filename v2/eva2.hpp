@@ -60,10 +60,20 @@ struct Eva2Config {
     int max_reply_words = 12;
     int eye_units = 640;               // unidades de V2 nos olhos das cenas
     float label_match = 0.25f;          // a palavra ouvida decide qual é a coisa se ela se parece ao menos tanto com o conceito nomeado
-    float concept_match = 0.8f;        // sem palavra: parecida tanto com um conceito, é ele; menos, é coisa nova
-    // No sono, juntar conceitos que uma mesma palavra nomeia ao menos tanto. Testado
-    // com 0,15: piorou (juntou coisas diferentes em cascata); desligado (> 1).
-    float merge_specificity = 2.0f;
+    float concept_match = 0.75f;       // sem palavra: parecida tanto com um conceito, é ele; menos, é coisa nova
+    // No sono, juntar conceitos que uma mesma palavra nomeia ao menos tanto. Só pelo
+    // nome (0,15, sem olhar a aparência) piorou: juntou coisas diferentes em cascata.
+    float merge_specificity = 0.3f;
+    float merge_looks = 0.55f;   // ... e que se parecem ao menos tanto (com o nome sozinho, piorou: juntava coisas diferentes)
+    // Emoção por memória: o que ela sente (-1 triste .. +1 feliz) segue o que vê
+    // (contágio), fica guardado em cada lembrança, e lembrar traz de volta
+    float contagion = 0.6f;            // quanto a cara de quem chora/ri passa para ela
+    float reinstate = 0.5f;            // quanto lembrar um episódio traz de volta o que ela sentiu
+    float feeling_tau = 60000.0f;      // ms para o sentimento passar
+    float feeling_threshold = 0.25f;   // acima disto (em módulo) ela está feliz ou triste
+    // Frases que terminam: depois do plano, no máximo tantas palavras sem conteúdo antes do fim
+    int plan_tail = 2;
+    float plan_end_fit = 0.2f;         // o fim entra assim que a gramática o aceita um pouco
     int max_actions_per_turn = 3;
     bool world_enabled = true;
     float meaning_threshold = 0.3f;   // força (≈cosseno) mínima para uma palavra "significar" uma percepção
@@ -150,6 +160,45 @@ public:
     int understand(const std::vector<std::string>& words, const std::vector<Scene>& options);
     // Resposta a uma pergunta pela memória (vazio se não for pergunta ou se ela não lembra)
     std::vector<std::string> answer(const std::vector<std::string>& question);
+    // ---- sim, não, não sei (o comparador: o que ouviu confere com o que lembra?)
+    enum Judgment { kSame = 0, kDiff = 1, kUnknown = 2, kNoClaim = 3 };
+    static const char* judgment_percept(int j) { static const char* p[] = {"[igual]", "[diferente]", "[nao_sei]", ""}; return p[j]; }
+    // a frase vira uma cena (quem, ação, alvo, lugar), pela ordem aprendida
+    Scene parse_claim(const std::vector<std::string>& words) const;
+    // compara a cena dita com a memória (ou com o que ela sente agora, se a frase fala dela)
+    int compare_claim(const std::vector<std::string>& words, Scene* truth = nullptr, const std::string& speaker = "voce", const std::string& listener = "eva") const;
+    // alguém pergunta se algo é verdade e responde ("o gato comeu o peixe?" "não, o gato comeu o pão")
+    void witness_check(const Scene& scene, const std::vector<std::string>& question, const std::vector<std::string>& answer, bool past = false);
+    // alguém diz o que não é, vendo a cena ("o gato não está na sala")
+    void witness_negation(const Scene& scene, const std::vector<std::string>& negated);
+    // um livro: ela vê a figura e ouve o nome ("olha a girafa"); não é algo que aconteceu
+    void look_at_book(const std::string& thing, const std::vector<std::string>& words);
+    // alguém pergunta algo que ninguém sabe e a resposta é "não sei" (ela também não sabe)
+    void witness_unknown(const std::vector<std::string>& question, const std::vector<std::string>& answer);
+    void set_comparator(bool on) { comparator_on_ = on; }
+    // ---- fatos ouvidos, nomes, meu e seu
+    // alguém conta algo que ela não viu ("o papai está no mercado"): vira lembrança (contada)
+    bool told(const std::vector<std::string>& words, const std::string& speaker = "voce", const std::string& listener = "eva");
+    // alguém fala o nome de uma coisa de alguém ("o meu gato chama mimi"), e ela vê a coisa
+    void witness_naming(const std::string& speaker, const std::string& listener, const std::string& owner, const std::string& thing,
+                        const std::vector<std::string>& words, bool her_turn = false);
+    // pergunta e resposta sobre um nome (entre os pais, ou com ela, a resposta no turno dela)
+    void witness_name_dialogue(const std::string& asker, const std::string& answerer, const std::string& owner, const std::string& thing,
+                               const std::vector<std::string>& question, const std::vector<std::string>& answer);
+    const FactMemory& facts() const { return facts_; }
+    void set_store_heard(bool on) { store_heard_ = on; }
+    void set_perspective(bool on) { perspective_ = on; }
+    // ---- sentimentos
+    float feeling() const { return feeling_; }
+    void set_feeling(float f) { feeling_ = f; }
+    void set_valence_in_memory(bool on) { valence_in_memory_ = on; }
+    void set_interoception_in_speech(bool on) { interoception_in_speech_ = on; }
+    // alguém diz como alguém se sente ("você está feliz", "eu estou triste"), vendo a cara
+    void witness_feeling(const std::vector<std::string>& words, bool about_listener, bool happy, bool her_turn = false);
+    // pergunta sobre o sentimento dela e a resposta por ela (andaime)
+    void witness_feeling_dialogue(const std::vector<std::string>& question, const std::vector<std::string>& answer);
+    // frases que terminam: liga/desliga o fechamento pelo plano (para medir)
+    void set_plan_closure(bool on) { plan_closure_ = on; }
     const EpisodicMemory& episodes() const { return episodes_; }
     const RoleOrder& role_order() const { return roles_; }
     const QuestionWords& question_words() const { return qwords_; }
@@ -168,7 +217,10 @@ public:
     // diz qual é a coisa (a palavra ajuda a separar coisas parecidas: "isso é um
     // rato, não uma lontra"); sem palavras, só os olhos decidem.
     std::string see_thing(const Image& img, bool learn = true, const std::vector<std::string>& words = {});
+    // vários olhares na mesma coisa durante a cena (os olhos se mexem): uma descrição só, mais firme
+    std::string see_thing(const std::vector<Image>& glances, bool learn = true, const std::vector<std::string>& words = {});
     std::string see_place(const Image& img, bool learn = true, const std::vector<std::string>& words = {});
+    std::string see_place(const std::vector<Image>& glances, bool learn = true, const std::vector<std::string>& words = {});
     size_t thing_concepts() const { return things_.size(); }
     void set_concept_threshold(float t) { things_.threshold = t; places_.threshold = t; }
     size_t place_concepts() const { return places_.size(); }
@@ -243,6 +295,8 @@ public:
     static constexpr const char* kCurious = "<curiosa>";
     static constexpr const char* kSurprised = "<surpresa>";
     static constexpr const char* kWorld = "<mundo>";
+    static constexpr const char* kSad = "<triste>";
+    static constexpr const char* kAsk = "<?>";  // a voz subindo no fim (pergunta de sim ou não)
     static bool is_internal(const std::string& w) { return !w.empty() && (w[0] == '<' || w[0] == '[' || w[0] == '{'); }
 
 private:
@@ -283,9 +337,32 @@ private:
     QuestionWords qwords_;
     bool memory_in_answers_ = true, role_order_in_speech_ = true, role_order_in_understanding_ = true;
     bool number_in_speech_ = true, tense_in_speech_ = true;
+    bool comparator_on_ = true, store_heard_ = true, perspective_ = true, valence_in_memory_ = true, interoception_in_speech_ = true, plan_closure_ = true;
+    FactMemory facts_;
+    std::vector<std::vector<int>> told_plan_;  // o que ela acabou de guardar do que você contou (para repetir do lado dela)
+    float feeling_ = 0.0f;
+    void feel(float delta);
+    // plano de fala: o sentido de cada palavra (para o plano mandar no conteúdo)
+    std::vector<std::string> plan_meaning_, item_meaning_;
+    int plan_extra_ = 0;
+    void begin_plan(const std::vector<std::vector<int>>& plan);
+    std::vector<int> judgment_words(const std::string& percept) const;
+    std::string judgment_of(const std::string& w) const;  // "não" + "sei", em ordem
+    std::vector<std::vector<int>> judgment_plan(const std::string& percept) const;
+    std::vector<std::vector<int>> name_plan(const std::string& owner_percept, const std::string& thing, const std::string& name) const;
+    std::vector<std::vector<int>> feeling_plan(bool happy) const;
+    std::vector<int> forms_in(const std::vector<int>& forms, const std::string& context) const;
+    std::vector<int> agreeing(const std::vector<int>& forms, const std::vector<int>& with) const;
+    // de quem é a coisa, pela palavra (meu/seu) e por quem fala: devolve a pessoa
+    std::string owner_from(const std::vector<std::string>& words, const std::string& speaker, const std::string& listener) const;
+    std::string name_in(const std::vector<std::string>& words) const;  // a palavra nova (o nome)
     // das formas de um sentido ("gato", "gatos"; "come", "comem", "comeu"...), as que
     // combinam com quantos são e com quando foi
     std::vector<int> choose_forms(const std::vector<int>& forms, bool many, bool past) const;
+    void bind_asked(const std::vector<std::string>& question, int kind);  // palavras (e pares) da pergunta -> o que ela pede
+    std::pair<int, double> asked_by(const std::vector<std::string>& question) const;
+    bool question_word(const std::string& w) const;
+    std::string meaning_raw(const std::string& word) const;  // o sentido, sem descontar as palavras de pergunta
     bool sounds_past(const std::vector<std::string>& words) const;
     std::vector<std::unordered_map<int, float>> prev_counts_;  // quem vem antes de cada palavra
     std::vector<std::vector<int>> plan_;  // o que ela quer dizer, em ordem (cada item: as formas de um sentido)
@@ -324,7 +401,7 @@ private:
     VisualCortex vision_;  // olhos e córtex visual
     VisualCortex eyes_;    // olhos para as cenas (mais unidades: muitas coisas)
     ConceptMemory things_, places_;
-    std::string see_with(ConceptMemory& mem, const char* prefix, const char* meaning_prefix, const Image& img, bool learn, const std::vector<std::string>& words);
+    std::string see_with(ConceptMemory& mem, const char* prefix, const char* meaning_prefix, const std::vector<Image>& glances, bool learn, const std::vector<std::string>& words);
     // no sono: conceitos que têm o mesmo nome eram a mesma coisa vista de jeitos diferentes; viram um só
     int consolidate_concepts(ConceptMemory& mem, const char* prefix, const char* meaning_prefix);
     bool eyes_open_ = false;

@@ -8,37 +8,31 @@ Voce: estamos no quarto
          Eva: estamos no quarto   [eco <surpresa>]
         (voce aponta para cama)
 Voce: olha a cama
-        (surpresa 1.00, dopamina 0.80, nova: olha, nova: a, nova: cama)
+        (surpresa 0.99, dopamina 0.80, nova: olha, nova: a, nova: cama)
          Eva: olha a cama   [eco <surpresa>]
         (voce aponta para janela)
 Voce: olha a janela
         (surpresa 0.90, dopamina 0.77, nova: janela)
-         Eva: olha a cama   [eco <feliz> <surpresa>]
+         Eva: olha a janela   [eco <feliz> <surpresa>]
         (voce levou a Eva para jardim)
         [jardim, manha] ve: flor arvore passaro livro | fome 44% cansaco 25%
 Voce: estamos no jardim
         (surpresa 0.90, dopamina 0.77, nova: jardim)
          Eva: estamos no quarto   [eco <feliz> <surpresa>]
-         Eva foi para cozinha   [{ir:cozinha}]
         (voce aponta para flor)
 Voce: olha a flor  (com carinho)
         (surpresa 0.90, dopamina 1.77, nova: flor)
-         Eva: olha a janela   [eco <feliz> <surpresa>]
-         Eva olhou em volta   [{olhar}]
+         Eva: olha a cama   [eco <feliz> <surpresa>]
         (voce aponta para arvore)
 Voce: essa e a arvore
         (surpresa 0.99, dopamina 0.80, nova: essa, nova: e, nova: arvore)
          Eva: essa e a arvore   [eco <feliz> <surpresa>]
-         Eva olhou em volta   [{olhar}]
-         Eva olhou em volta   [{olhar}]
-         Eva pegou cafe   [{pegar:cafe}]
         (voce levou a Eva para praia)
-        [praia, tarde] ve: mar areia sol barco | na mao: cafe | fome 68% cansaco 40%
+        [praia, tarde] ve: mar areia sol barco | fome 68% cansaco 40%
         (voce aponta para mar)
 Voce: olha o mar  (com carinho)
         (surpresa 0.90, dopamina 1.77, nova: o, nova: mar)
          Eva: olha a arvore   [eco <feliz> <surpresa>]
-         Eva comeu cafe   [{comer}, recompensa]
 Voce: o mar e bonito  (com carinho)
         (surpresa 0.90, dopamina 1.77, nova: bonito)
          Eva: o mar e bonito   [eco <feliz> <surpresa>]
@@ -46,82 +40,81 @@ Voce: a praia e linda  (com carinho)
         (surpresa 0.96, dopamina 1.79, nova: praia, nova: linda)
          Eva: a praia e linda   [eco <feliz> <surpresa>]
         (voce levou a Eva para cozinha)
-        [cozinha, tarde] ve: mesa cafe | fome 32% cansaco 55%
+        [cozinha, tarde] ve: mesa cafe | fome 92% cansaco 55%
 Voce: estamos na cozinha
         (surpresa 0.97, dopamina 0.79, nova: na, nova: cozinha)
          Eva: estamos na cozinha   [eco <feliz> <surpresa>]
-         Eva foi para jardim (indo para jardim)   [{ir:jardim}]
+         Eva pegou cafe (entendeu)   [{pegar:cafe}]
         (voce aponta para pao)
 Voce: olha o pao
         (surpresa 0.90, dopamina 0.77, nova: pao)
          Eva: olha o pao   [eco <feliz> <surpresa>]
+         Eva comeu cafe   [{comer}, recompensa]
         (voce aponta para cafe)
 Voce: isso e cafe
-        (surpresa 0.93, dopamina 0.78, nova: isso, nova: cafe)
+        (surpresa 0.97, dopamina 0.79, nova: isso, nova: cafe)
          Eva: isso   [eco <feliz> <surpresa>]
-         Eva foi para praia (indo para praia)   [{ir:praia}]
+         Eva foi para jardim (indo para praia)   [{ir:jardim}]
 Voce: estamos na praia  (com carinho)
-        (surpresa 0.33, dopamina 1.60)
-         Eva: o mar   [resposta <feliz>]
-         Eva olhou em volta   [{olhar}]
+        (surpresa 0.34, dopamina 1.60)
+         Eva: a praia e linda   [resposta <feliz>]
 Voce: eu gosto da praia
-        (surpresa 0.98, dopamina 0.79, nova: eu, nova: gosto, nova: da)
+        (surpresa 0.99, dopamina 0.80, nova: eu, nova: gosto, nova: da)
          Eva: eu gosto da praia   [eco <feliz> <surpresa>]
 Voce: a cama e boa
         (surpresa 0.90, dopamina 0.77, nova: boa)
          Eva: a cama e boa   [eco <feliz> <surpresa>]
-         Eva olhou em volta   [{olhar}]
-         Eva olhou em volta   [{olhar}]
-         Eva olhou em volta   [{olhar}]
+         Eva pegou pao   [{pegar:pao}]
+         Eva comeu pao   [{comer}, recompensa]
 
 [Teste de sentido] So a percepcao, sem conversa. O que ela diz vendo cada coisa?
-  ve cama     -> cama e linda 
-  ve janela   -> (nada; nao sabe nomear)
-  ve flor     -> pao 
-  ve arvore   -> jardim 
-  ve mar      -> o 
-  ve pao      -> flor 
-  ve cafe     -> cafe 
+  ve cama     -> cozinha 
+  ve janela   -> cama e boa 
+  ve flor     -> flor 
+  ve arvore   -> arvore 
+  ve mar      -> mar e bonito 
+  ve pao      -> quarto 
+  ve cafe     -> (nada; nao sabe nomear)
   ve passaro  -> (nada; nao sabe nomear)
 
 [O que as palavras evocam nela]
-  'praia ' -> [esta:praia](0.69) [v155](0.69) [v10](0.69) 
-  'mar   ' -> [v13](0.75) [v92](0.74) [v78](0.74) 
-  'flor  ' -> [v154](0.71) [v37](0.71) [v19](0.64) 
-  'cama  ' -> [v42](0.54) [v113](0.54) [v110](0.50) 
+  'praia ' -> [v4](0.81) [v105](0.81) [esta:praia](0.80) 
+  'mar   ' -> [v71](0.63) [v92](0.61) [v13](0.61) 
+  'flor  ' -> [v21](1.00) [v79](0.92) [v26](0.92) 
+  'cama  ' -> [v153](0.73) [v42](0.58) [v43](0.57) 
 
 [Imaginar] A imagem que cada palavra evoca nela (demo_imagina.ppm: mar, flor, cama, pao, e 'flor mar' misturados)
-  'mar' -> forca 0.30
-  'flor' -> forca 0.25
-  'cama' -> forca 0.19
-  'pao' -> forca 0.21
-  'flor mar' -> forca 0.28
+  'mar' -> forca 0.29
+  'flor' -> forca 0.32
+  'cama' -> forca 0.22
+  'pao' -> forca 0.27
+  'flor mar' -> forca 0.32
 
 [Compreensao] Ela esta no quarto. Voce diz 'vamos para a praia'.
-        [jardim, tarde] ve: flor arvore | fome 20% cansaco 65%
+        [quarto, tarde] ve: cama janela fruta | fome 28% cansaco 70%
 Voce: vamos para a praia
         (surpresa 0.90, dopamina 0.77, nova: vamos, nova: para)
-         Eva: vamos para a cama e boa   [eco <feliz> <surpresa>]
+         Eva: vamos para a flor   [eco <feliz> <surpresa>]
+         Eva foi para jardim (indo para praia)   [{ir:jardim}]
          Eva foi para praia (indo para praia)   [{ir:praia}]
-         Eva: praia e boa   [pensamento <feliz>]
-        [praia, tarde] ve: mar areia sol barco | fome 28% cansaco 70%
+         Eva: praia   [pensamento <feliz>]
+         Eva olhou em volta   [{olhar}]
+         Eva olhou em volta   [{olhar}]
+        [praia, tarde] ve: mar areia sol barco | fome 36% cansaco 75%
 
 [Sozinha na praia] 20 s de silencio. O que ela diz, vendo o mar?
-         Eva: praia   [pensamento <curiosa>]
-         Eva: (aponta para barco)   [aponta <curiosa>]
-         Eva: praia e boa   [pensamento]
+         Eva: praia e boa   [pensamento <curiosa>]
+         Eva: (aponta para mar)   [aponta <curiosa>]
+         Eva: praia e boa   [pensamento <curiosa>]
+         Eva: (aponta para mar)   [aponta <curiosa>]
 
 [Fome] Voce a leva a cozinha e fica quieto.
-         Eva pegou pao   [{pegar:pao}]
+         Eva: cozinha   [pensamento]
+         Eva: cozinha   [pensamento <curiosa>]
          Eva: (aponta para passaro)   [aponta <curiosa>]
-         Eva: praia e boa   [pensamento]
-         Eva foi para quarto   [{ir:quarto}]
-         Eva dormiu   [{dormir}, recompensa]
-         Eva: praia e boa   [pensamento <feliz> <curiosa>]
-         Eva: (aponta para fruta)   [aponta <curiosa>]
-         Eva: praia e boa   [pensamento]
-         Eva: praia e boa   [pensamento <curiosa>]
-         Eva: (aponta para fruta)   [aponta <curiosa>]
-        [quarto, tarde] ve: cama janela fruta | na mao: pao | fome 28% cansaco 0%
+         Eva: cozinha   [pensamento <curiosa>]
+         Eva: (aponta para cafe)   [aponta <curiosa>]
+         Eva: cozinha   [pensamento]
+        [cozinha, tarde] ve: mesa cafe passaro livro pao | fome 36% cansaco 75%
 
-segmentos: 15245 | turnos: 170 | ligacoes de sentido: 171
+segmentos: 14376 | turnos: 158 | ligacoes de sentido: 170

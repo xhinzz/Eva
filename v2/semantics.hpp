@@ -66,6 +66,24 @@ public:
         return cw == count_w_.end() || cw->second <= 0 ? 0.0f : std::min(1.0f, b->second / cw->second);
     }
 
+    // de todas as vezes que a percepção aconteceu, em quantas a palavra veio junto
+    float coverage(const std::string& perception, const std::string& word) const {
+        auto a = assoc_.find(perception);
+        if (a == assoc_.end()) return 0.0f;
+        auto b = a->second.find(word);
+        if (b == a->second.end()) return 0.0f;
+        const float cp = count_p_.at(perception);
+        return cp > 0 ? b->second / cp : 0.0f;
+    }
+    // a maior cobertura entre todas as palavras ("gato" cobre quase toda vez que se vê um gato; "mimi", quase nunca)
+    float best_coverage(const std::string& perception) const {
+        auto a = assoc_.find(perception);
+        if (a == assoc_.end()) return 0.0f;
+        float best = 0.0f;
+        for (const auto& [w, v] : a->second) best = std::max(best, v);
+        const float cp = count_p_.at(perception);
+        return cp > 0 ? best / cp : 0.0f;
+    }
     // palavras que esta percepção evoca, da mais forte para a mais fraca
     std::vector<std::pair<std::string, float>> words_for(const std::string& perception, float min_strength) const {
         std::vector<std::pair<std::string, float>> out;
@@ -107,6 +125,7 @@ public:
             turns_with_[w] += 1;
         }
     }
+    float turns_with(const std::string& w) const { auto it = turns_with_.find(w); return it == turns_with_.end() ? 0.0f : static_cast<float>(it->second); }
     float frequency(const std::string& w) const {
         auto it = turns_with_.find(w);
         return (it == turns_with_.end() || turns_ == 0) ? 0.0f : static_cast<float>(it->second) / turns_;

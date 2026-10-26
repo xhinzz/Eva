@@ -12,6 +12,8 @@
 namespace eva2 {
 
 static constexpr int kZones = 9;  // setores da caixa da coisa na descrição invariante
+static constexpr int kV4 = 64 + 9 + 4;  // V4: cores da coisa (4x4x4), onde ela ocupa a caixa (3x3), proporções
+static constexpr float kV4Weight = 3.0f;  // peso da cor e da forma (medido: v2/tests e logs/olhos)
 
 // ---------------------------------------------------------------- utilidades
 
@@ -100,7 +102,7 @@ void VisualCortex::prime(const std::vector<Image>& samples) {
         for (size_t i = 0; i < v2_gen_[k].size(); ++i) v2_gen_[k][i] = img.px[i];
     }
     // estatística das respostas densas nas coisas da infância dos olhos
-    const int D = (1 + kZones) * cfg_.v1_units;
+    const int D = (1 + kZones) * cfg_.v1_units + kV4;
     dense_mu_.assign(D, 0.0f); dense_sd_.assign(D, 0.0f);
     for (const auto& img : samples) { auto d = dense_raw(img); for (int u = 0; u < D; ++u) { dense_mu_[u] += d[u]; dense_sd_[u] += d[u] * d[u]; } }
     for (int u = 0; u < D; ++u) {
@@ -128,7 +130,19 @@ std::vector<float> VisualCortex::invariant_dense(const Image& img) const {
     std::vector<float> v = dense_raw(img);
     if (dense_mu_.size() == v.size())
         for (size_t u = 0; u < v.size(); ++u) v[u] = (v[u] - dense_mu_[u]) / dense_sd_[u];
+    for (size_t u = v.size() - kV4; u < v.size(); ++u) v[u] *= kV4Weight;
     return v;
+}
+
+// vários olhares na mesma coisa (os olhos se mexem, a coisa se mexe): a média das descrições
+std::vector<float> VisualCortex::invariant_glances(const std::vector<Image>& imgs) const {
+    std::vector<float> acc;
+    for (const auto& img : imgs) {
+        auto v = invariant_dense(img);
+        if (acc.empty()) acc = v; else for (size_t i = 0; i < v.size(); ++i) acc[i] += v[i];
+    }
+    if (!imgs.empty()) for (float& x : acc) x /= imgs.size();
+    return acc;
 }
 
 // Descrição invariante a posição e a tamanho: para cada traço de V1, a resposta
@@ -169,6 +183,23 @@ std::vector<float> VisualCortex::dense_raw(const Image& img) const {
                 v[q * U + u] = std::max(v[q * U + u], d);
             }
         }
+    // V4: de que cores é a coisa (o que difere do fundo), onde ela ocupa a caixa dela,
+    // e as proporções (larga, alta, cheia). Nada disso depende de onde ela está.
+    std::vector<float> hist(64, 0.0f), occ(kZones, 0.0f);
+    int n = 0;
+    for (int y = 0; y < kImg; ++y)
+        for (int x = 0; x < kImg; ++x) {
+            const float d = std::fabs(img.at(x, y, 0) - r0) + std::fabs(img.at(x, y, 1) - g0) + std::fabs(img.at(x, y, 2) - b0);
+            if (d <= 0.15f) continue;
+            ++n;
+            auto bin = [&](int c) { return std::min(3, static_cast<int>(img.at(x, y, c) * 4.0f)); };
+            hist[bin(0) * 16 + bin(1) * 4 + bin(2)] += 1.0f;
+            const int zx = std::clamp(static_cast<int>(3.0f * (x - x0b) / w), 0, 2), zy = std::clamp(static_cast<int>(3.0f * (y - y0b) / h), 0, 2);
+            occ[zy * 3 + zx] += 1.0f;
+        }
+    for (float x : hist) v.push_back(n ? std::sqrt(x / n) : 0.0f);
+    for (float x : occ) v.push_back(n ? x / n : 0.0f);
+    v.push_back(w / h); v.push_back(n / (w * h)); v.push_back(w / kImg); v.push_back(h / kImg);
     return v;
 }
 

@@ -80,6 +80,7 @@ public:
     // em desvios do que é típico (cada traço comparado com a média e a variação
     // dele nas coisas vistas na infância dos olhos)
     std::vector<float> invariant_dense(const Image& img) const;
+    std::vector<float> invariant_glances(const std::vector<Image>& imgs) const;  // vários olhares, uma descrição
     std::vector<int> prime_origin;  // depuração: índice da amostra que semeou cada unidade de V2
     void save(std::ostream& out) const;
     bool load(std::istream& in);
@@ -167,6 +168,13 @@ public:
         ex_[from].clear();
     }
     bool alive(int id) const { return id >= 0 && id < static_cast<int>(ex_.size()) && !ex_[id].empty(); }
+    // parecença entre dois conceitos (média sobre os exemplares de um, comparados ao outro)
+    float concept_similarity(int a, int b) const {
+        if (!alive(a) || !alive(b)) return -2.0f;
+        float sum = 0.0f;
+        for (const auto& e : ex_[a]) sum += similarity(e, b);
+        return sum / ex_[a].size();
+    }
     void add_exemplar(int id, const std::vector<float>& v) {
         auto& list = ex_[id];
         if (static_cast<int>(list.size()) < max_exemplars) list.push_back(v);

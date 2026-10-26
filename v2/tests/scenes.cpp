@@ -27,6 +27,7 @@
 #include <string>
 #include <vector>
 
+#include "childhood.hpp"
 #include "corpus.hpp"
 #include "eva2.hpp"
 
@@ -37,12 +38,7 @@ static std::string join(const std::vector<std::string>& v) {
     for (size_t i = 0; i < v.size(); ++i) s += (i ? " " : "") + v[i];
     return s;
 }
-static eva2::Scene to_scene(const Grammar::Event& e) {
-    eva2::Scene s{e.agent, e.action, e.patient, e.place};
-    s.agent_many = e.an == 'p';
-    s.patient_many = e.pn == 'p';
-    return s;
-}
+static eva2::Scene to_scene(const Grammar::Event& e) { return eva2::scene_of(e); }
 
 int main(int argc, char** argv) {
     const int childhood = argc > 1 ? atoi(argv[1]) : 10000;
@@ -69,60 +65,39 @@ int main(int argc, char** argv) {
         if (eyes) eva2::set_sprite_names(thing_names);
     }
     std::mt19937 view_rng(101);
+    // GLANCES: quantos olhares ela dá em cada coisa durante uma cena (os olhos se mexem)
+    const int glances = getenv("GLANCES") ? atoi(getenv("GLANCES")) : 3;
+    auto look = [&](const std::string& lemma) {
+        std::vector<eva2::Image> g;
+        for (int k = 0; k < glances; ++k) g.push_back(eva2::draw_sprite(lemma, view_rng));
+        return g;
+    };
     auto perceive = [&](eva2::Eva2& ev2, const Grammar::Event& ev, const std::vector<std::string>& words, bool learn) {
         if (!eyes) return to_scene(ev);
         eva2::Scene s;
-        s.agent = ev2.see_thing(eva2::draw_sprite(ev.agent, view_rng), learn, words);
-        if (!ev.patient.empty()) s.patient = ev2.see_thing(eva2::draw_sprite(ev.patient, view_rng), learn, words);
-        s.place = ev2.see_place(eva2::draw_backdrop(ev.place, view_rng), learn, words);
+        s.agent = ev2.see_thing(look(ev.agent), learn, words);
+        if (!ev.patient.empty()) s.patient = ev2.see_thing(look(ev.patient), learn, words);
+        {
+            std::vector<eva2::Image> g;
+            for (int k = 0; k < glances; ++k) g.push_back(eva2::draw_backdrop(ev.place, view_rng));
+            s.place = ev2.see_place(g, learn, words);
+        }
         s.action = ev.action;
         s.agent_many = ev.an == 'p';
         s.patient_many = ev.pn == 'p';
+        s.valence = ev.valence;
         return s;
     };
     std::vector<eva2::Scene> seen;  // todas as cenas que ela viu (para conferir respostas)
     std::set<std::pair<std::string, std::string>> pairs;  // quem já apareceu junto com quem
+    auto see_thing = [&](eva2::Eva2& ev2, const std::string& lemma, const std::vector<std::string>& words) {
+        return eyes ? ev2.see_thing(look(lemma), true, words) : lemma;
+    };
+    eva2::Childhood life(home, 5, perceive, see_thing);
     auto run_childhood = [&](eva2::Eva2& e) {
-        std::uniform_real_distribution<double> u(0, 1);
-        std::mt19937 r(5);
-        std::vector<std::pair<Grammar::Event, eva2::Scene>> past;  // cenas de antes (e como ela as viu), para conversar depois
-        for (int done = 0; done < childhood;) {
-            const int today = std::min(2000, childhood - done);
-            for (int i = 0; i < today; ++i) {
-                const double x = u(r);
-                if (x < 0.35) { e.listen(home.sentence()); continue; }
-                if (x >= 0.85 && past.size() > 30) {
-                    // conversa sobre algo que já passou (a lembrança volta)
-                    std::uniform_int_distribution<size_t> back(5, 30);
-                    const auto& [ev, seen_as] = past[past.size() - back(r)];
-                    if (x < 0.93) {
-                        std::uniform_int_distribution<int> f(1, 2);
-                        const int field = f(r);
-                        if (home.can_ask(ev, field)) e.witness_dialogue(seen_as, home.question(ev, field, true), home.answer(ev, field, true), true);
-                    } else {
-                        e.recount(seen_as, home.describe(ev, true));
-                    }
-                    continue;
-                }
-                auto ev = home.random_event();
-                const auto words = home.describe(ev);
-                const auto sc = perceive(e, ev, words, true);
-                e.witness(sc, words);
-                seen.push_back(to_scene(ev));
-                past.push_back({ev, sc});
-                pairs.insert({ev.agent, ev.patient});
-                pairs.insert({ev.patient, ev.agent});
-                if (x >= 0.75) {
-                    std::uniform_int_distribution<int> f(0, 2);
-                    int field = f(r);
-                    if (!home.can_ask(ev, field)) field = 0;
-                    e.witness_dialogue(sc, home.question(ev, field), home.answer(ev, field));
-                }
-            }
-            done += today;
-            e.sleep(300);
-            std::fprintf(stderr, "  infância: %d momentos\n", done);
-        }
+        life.live(e, childhood, [](int, int, int done) { std::fprintf(stderr, "  infância: %d momentos\n", done); });
+        for (const auto& sc : life.seen) seen.push_back(sc);
+        pairs = life.pairs;
     };
     eva2::Eva2 e(c, 1);
     if (cache.empty() || !e.load()) {
@@ -171,7 +146,7 @@ int main(int argc, char** argv) {
         const auto words = test.describe(ev);
         std::vector<eva2::Scene> options{{a, "vê", b, ""}, {b, "vê", a, ""}};
         if (eyes) {  // as duas cenas vistas pelos olhos (sem palavras)
-            const std::string ca = e.see_thing(eva2::draw_sprite(a, view_rng), false), cb = e.see_thing(eva2::draw_sprite(b, view_rng), false);
+            const std::string ca = e.see_thing(look(a), false), cb = e.see_thing(look(b), false);
             options = {{ca, "vê", cb, ""}, {cb, "vê", ca, ""}};
         }
         for (int cond = 0; cond < 2; ++cond) {
@@ -320,6 +295,272 @@ int main(int argc, char** argv) {
         }
     }
 
+
+    // ------------------------------------------------ 5. sim ou não (a cena de 3 cenas atrás; metade das perguntas é falsa)
+    // A verdade é o fato mais recente (como nas perguntas). Certa: "sim" quando é
+    // verdade; "não" + a frase com o fato certo quando não é.
+    auto first_is = [](const std::vector<std::string>& a, const char* w) { return !a.empty() && a[0] == w; };
+    auto rest_of = [](const std::vector<std::string>& a) { return a.size() > 1 ? std::vector<std::string>(a.begin() + 1, a.end()) : std::vector<std::string>{}; };
+    int yn_judge[2] = {0, 0}, yn_full[2] = {0, 0}, yn_n = 0, yn_dontknow = 0, shown_yn = 0;
+    {
+        std::vector<Grammar::Event> rec;
+        for (int t = 0; t < tests + 3; ++t) {
+            auto ev = fresh.random_event();
+            const auto words = fresh.describe(ev);
+            e.witness(perceive(e, ev, words, true), words);
+            seen.push_back(to_scene(ev));
+            rec.push_back(ev);
+            if (rec.size() < 4) continue;
+            const auto& q_ev = rec[rec.size() - 4];
+            // a verdade de agora sobre quem fez aquilo
+            Grammar::Event truth = q_ev;
+            for (auto it = seen.rbegin(); it != seen.rend(); ++it) {
+                if (q_ev.kind == Grammar::AT && (it->agent == q_ev.agent || it->patient == q_ev.agent)) { truth.place = it->place; break; }
+                if (q_ev.kind != Grammar::AT && it->agent == q_ev.agent && it->action == q_ev.action) { truth.patient = it->patient; break; }
+            }
+            const bool yes = (t % 2 == 0) || !fresh.can_alter(truth);
+            const Grammar::Event claim = yes ? truth : fresh.altered(truth);
+            const bool past = q_ev.kind != Grammar::AT && t % 4 == 1;
+            const auto q = fresh.yes_no(claim, past);
+            const std::string target = truth.kind == Grammar::AT ? truth.place : truth.patient;
+            for (int cond = 0; cond < 2; ++cond) {
+                e.set_comparator(cond == 0);
+                const auto a = e.answer(q);
+                const bool judged = first_is(a, yes ? "sim" : "não") && !(a.size() > 1 && a[1] == "sei");
+                bool fact = target.empty();
+                for (const auto& w : rest_of(a)) if (test.lemma_of(w) == target) fact = true;
+                yn_judge[cond] += judged;
+                yn_full[cond] += judged && fact && test.check(rest_of(a)).agreement;
+                if (cond == 0) yn_dontknow += a.size() == 2 && a[0] == "não" && a[1] == "sei";
+                if (verbose && cond == 0 && shown_yn < 6) { ++shown_yn; std::printf("  sim ou não: \"%s\" (%s) -> \"%s\"\n", join(q).c_str(), yes ? "é verdade" : ("não: era " + target).c_str(), join(a).c_str()); }
+            }
+            e.set_comparator(true);
+            ++yn_n;
+        }
+    }
+
+    // ------------------------------------------------ 6. não sei: perguntas sobre coisas que ela só conhece dos livros
+    int dk_ok = 0, dk_n = 0, dk_false = 0, dk_known_n = 0;
+    {
+        auto only = test.book_things();
+        for (size_t i = 0; i < only.size() && dk_n < 40; ++i) {
+            Grammar::Event ev; ev.kind = Grammar::AT; ev.agent = only[i]; ev.place = "casa";
+            const auto q = test.question(ev, 0);  // "cadê a girafa"
+            const auto a = e.answer(q);
+            dk_ok += a.size() == 2 && a[0] == "não" && a[1] == "sei";
+            ++dk_n;
+            if (verbose && i < 3) std::printf("  não sei: \"%s?\" -> \"%s\"\n", join(q).c_str(), join(a).c_str());
+        }
+        // e coisas que ela viu: não deve dizer "não sei"
+        for (size_t i = seen.size() - 40; i < seen.size(); ++i) {
+            Grammar::Event ev; ev.kind = Grammar::AT; ev.agent = seen[i].agent; ev.place = "casa"; ev.an = 's';
+            const auto a = e.answer(test.question(ev, 0));
+            dk_false += a.size() == 2 && a[0] == "não" && a[1] == "sei";
+            ++dk_known_n;
+        }
+    }
+
+    // ------------------------------------------------ 7. negação: "o leão não está na sala": qual das duas cenas?
+    int neg_ok[2] = {0, 0}, neg_n = 0;
+    for (int t = 0; t < tests; ++t) {
+        auto ev = fresh.random_event();
+        if (!fresh.can_alter(ev) || ev.kind == Grammar::LIKE) continue;
+        const auto other = fresh.altered(ev);
+        const auto words = fresh.negated(other);  // diz que NÃO é a outra
+        std::vector<eva2::Scene> options{to_scene(other), to_scene(ev)};  // a certa é a segunda
+        if (eyes) continue;
+        for (int cond = 0; cond < 2; ++cond) {
+            e.set_comparator(cond == 0);
+            neg_ok[cond] += e.understand(words, options) == 1;
+        }
+        e.set_comparator(true);
+        if (verbose && neg_n < 3) std::printf("  negação: \"%s\" -> ela escolhe a cena %s\n", join(words).c_str(), e.understand(words, options) == 1 ? "certa" : "errada");
+        ++neg_n;
+    }
+
+    if (!cache.empty()) e.load();  // cada teste novo parte do mesmo cérebro, o da infância (com CACHE)
+    // ------------------------------------------------ 8. fatos contados (ela não viu): "o urso está na praia" ... "cadê o urso?"
+    int told_ok[2] = {0, 0}, told_n = 0;
+    {
+        Grammar tales(91);
+        for (int cond = 0; cond < 2; ++cond) {
+            e.set_store_heard(cond == 0);
+            std::vector<Grammar::Event> rec;
+            for (int t = 0; t < tests / 2 + 3; ++t) {
+                auto ev = tales.random_event();
+                e.hear(tales.describe(ev));  // você conta (ela não vê)
+                rec.push_back(ev);
+                if (rec.size() < 4) continue;
+                const auto& q_ev = rec[rec.size() - 4];
+                std::uniform_int_distribution<int> f(0, 2);
+                int field = f(r);
+                if (!tales.can_ask(q_ev, field)) field = 0;
+                // a verdade: o mais recente que você contou sobre aquilo
+                std::string truth;
+                for (auto it = rec.rbegin(); it != rec.rend(); ++it) {
+                    if (field == 0 && it->kind == Grammar::AT && it->agent == q_ev.agent) { truth = it->place; break; }
+                    if (field == 1 && it->agent == q_ev.agent && it->action == q_ev.action) { truth = it->patient; break; }
+                    if (field == 2 && it->patient == q_ev.patient && it->action == q_ev.action) { truth = it->agent; break; }
+                }
+                if (field == 0 && q_ev.kind != Grammar::AT) continue;  // contar "o urso come a uva" não diz onde o urso está
+                if (truth.empty()) continue;
+                const auto a = e.answer(tales.question(q_ev, field));
+                bool fact = false;
+                for (const auto& w : a) if (test.lemma_of(w) == truth) fact = true;
+                told_ok[cond] += fact && test.check(a).agreement;
+                if (cond == 0) ++told_n;
+                if (verbose && cond == 0 && told_n <= 3) std::printf("  fato contado: \"%s?\" -> \"%s\" (você contou: %s)\n", join(tales.question(q_ev, field)).c_str(), join(a).c_str(), truth.c_str());
+            }
+        }
+        e.set_store_heard(true);
+    }
+
+    if (!cache.empty()) e.load();  // cada teste novo parte do mesmo cérebro, o da infância (com CACHE)
+    // ------------------------------------------------ 9. nomes que você conta, e meu/seu ("o meu gato chama tico" ... "como chama o meu gato?")
+    int nm_name[2] = {0, 0}, nm_poss[2] = {0, 0}, nm_full[2] = {0, 0}, nm_n = 0;
+    {
+        auto names = Grammar::pet_names();
+        std::vector<std::string> new_names(names.begin() + eva2::Childhood::kChildhoodNames, names.end());  // nomes que ela nunca ouviu
+        auto things = test.nameable();
+        std::mt19937 rn(77);
+        std::shuffle(things.begin(), things.end(), rn);
+        for (int cond = 0; cond < 2; ++cond) {
+            e.set_perspective(cond == 0);
+            for (size_t i = 0; i < 40 && i < things.size(); ++i) {
+                const std::string& thing = things[i];
+                const std::string& name = new_names[i % new_names.size()];
+                const bool yours = i % 2 == 0;  // metade: uma coisa sua ("o meu ..."); metade: uma coisa dela ("o seu ...")
+                e.hear(test.named(thing, yours, name));
+                e.hear(fresh.describe(fresh.random_event()));  // outras conversas no meio
+                e.hear(fresh.describe(fresh.random_event()));
+                const auto a = e.answer(test.ask_name(thing, yours));
+                const auto expect = test.named(thing, !yours, name);  // de quem é, visto do lado dela
+                bool has_name = false;
+                for (const auto& w : a) if (w == name) has_name = true;
+                const bool poss = a.size() > 1 && a[1] == expect[1];
+                nm_name[cond] += has_name;
+                nm_poss[cond] += poss;
+                nm_full[cond] += a == expect;
+                if (cond == 0) ++nm_n;
+                if (verbose && cond == 0 && i < 4) std::printf("  nome: você disse \"%s\"; \"%s?\" -> \"%s\"\n", join(test.named(thing, yours, name)).c_str(), join(test.ask_name(thing, yours)).c_str(), join(a).c_str());
+            }
+        }
+        e.set_perspective(true);
+    }
+
+    if (!cache.empty()) e.load();  // cada teste novo parte do mesmo cérebro, o da infância (com CACHE)
+    // ------------------------------------------------ 10. sentimentos
+    // (a) ela vê alguém chorar ou rir (ela sente), e você pergunta "como você está?"
+    // (b) "você está feliz?" / "você está triste?"
+    // (c) lembrar colore o humor: uma cena triste ou alegre com X, outras cenas,
+    //     o humor volta ao neutro, e você pergunta "cadê o X?": lembrar de X mexe com ela?
+    int fe_ok[2] = {0, 0}, fe_n = 0, fyn_ok = 0, fyn_n = 0, mem_toward[2] = {0, 0}, mem_n = 0;
+    double mem_shift[2] = {0, 0};
+    {
+        std::vector<std::string> good{"brinca", "ri", "dança", "canta", "pula", "sorri"}, bad{"chora", "cai", "grita", "tosse"};
+        std::mt19937 rf(13);
+        std::vector<std::string> people;
+        for (const auto& en : test.lexicon()) if (en.pos == corpus::NOUN && (en.sem & corpus::ANIM) && en.n == 's' && !Grammar::book_only(en.lemma)) people.push_back(en.lemma);
+        std::uniform_int_distribution<size_t> pp(0, people.size() - 1);
+        for (int t = 0; t < 60; ++t) {
+            const bool happy = t % 2 == 0;
+            Grammar::Event ev; ev.kind = Grammar::INTRANS; ev.agent = people[pp(rf)]; ev.place = "sala";
+            ev.action = happy ? good[t % good.size()] : bad[t % bad.size()];
+            ev.valence = happy ? 0.8f : -0.8f;
+            const auto words = test.describe(ev);
+            e.set_feeling(0.0f);
+            e.witness(perceive(e, ev, words, true), words);
+            seen.push_back(to_scene(ev));
+            const float now = e.feeling();
+            for (int cond = 0; cond < 2; ++cond) {
+                e.set_interoception_in_speech(cond == 0);
+                e.set_feeling(now);
+                if (getenv("DBG10") && t < 2 && cond == 0) setenv("EVA2_GDEBUG", "1", 1);
+                const auto a = e.answer(Grammar::ask_feeling());
+                if (getenv("DBG10")) unsetenv("EVA2_GDEBUG");
+                bool right = false;
+                for (const auto& w : a) if (w == (happy ? "feliz" : "triste")) right = true;
+                fe_ok[cond] += right && test.check(a).agreement;
+                if (verbose && cond == 0 && t < 2) std::printf("  sentimento: ela viu \"%s\"; \"como você está?\" -> \"%s\"\n", join(words).c_str(), join(a).c_str());
+            }
+            e.set_interoception_in_speech(true);
+            ++fe_n;
+            // (b)
+            e.set_feeling(now);
+            const bool claim = t % 3 == 0;
+            auto q = Grammar::feeling(false, claim);
+            q.push_back("<?>");
+            const auto a = e.answer(q);
+            fyn_ok += first_is(a, claim == happy ? "sim" : "não") && !(a.size() > 1 && a[1] == "sei");
+            ++fyn_n;
+            if (verbose && t < 2) std::printf("  sentimento: \"%s\" -> \"%s\"\n", join(q).c_str(), join(a).c_str());
+        }
+        // (c)
+        for (int t = 0; t < 60; ++t) {
+            const bool happy = t % 2 == 0;
+            Grammar::Event ev; ev.kind = Grammar::INTRANS; ev.agent = people[pp(rf)]; ev.place = "quarto";
+            ev.action = happy ? good[t % good.size()] : bad[t % bad.size()];
+            ev.valence = happy ? 0.8f : -0.8f;
+            const auto words = test.describe(ev);
+            e.witness(perceive(e, ev, words, true), words);
+            seen.push_back(to_scene(ev));
+            for (int k = 0; k < 4; ++k) {  // outras cenas, sem X
+                auto other = fresh.random_event();
+                if (other.agent == ev.agent || other.patient == ev.agent) continue;
+                other.valence = 0.0f;
+                const auto ow = fresh.describe(other);
+                e.witness(perceive(e, other, ow, true), ow);
+                seen.push_back(to_scene(other));
+            }
+            Grammar::Event at; at.kind = Grammar::AT; at.agent = ev.agent; at.place = "casa";
+            for (int cond = 0; cond < 2; ++cond) {
+                e.set_valence_in_memory(cond == 0);
+                e.set_feeling(0.0f);
+                e.answer(test.question(at, 0));  // "cadê o X?"
+                const float d = e.feeling();
+                mem_toward[cond] += happy ? d > 0.05f : d < -0.05f;
+                mem_shift[cond] += happy ? d : -d;
+            }
+            e.set_valence_in_memory(true);
+            ++mem_n;
+        }
+    }
+
+    // ------------------------------------------------ 11. frases que terminam: com e sem o fechamento pelo plano
+    // "emendou": um começo da frase já era uma frase completa e certa, e ela continuou
+    int end_ok[2] = {0, 0}, end_runon[2] = {0, 0}, end_n = 0;
+    auto runon = [&](const std::vector<std::string>& a) {
+        if (test.check(a).agreement) return false;
+        for (size_t k = 2; k < a.size(); ++k) if (test.check(std::vector<std::string>(a.begin(), a.begin() + k)).agreement) return true;
+        return false;
+    };
+    {
+        Grammar ends(23);
+        std::vector<Grammar::Event> rec;
+        for (int t = 0; t < tests + 1; ++t) {
+            auto ev = ends.random_event();
+            const auto words = ends.describe(ev);
+            const auto sc = to_scene(ev);
+            e.witness(perceive(e, ev, words, true), words);
+            seen.push_back(sc);
+            rec.push_back(ev);
+            if (rec.size() < 2) continue;
+            const auto& q_ev = rec[rec.size() - 2];
+            std::uniform_int_distribution<int> f(0, 2);
+            int field = f(r);
+            if (!ends.can_ask(q_ev, field)) field = 0;
+            for (int cond = 0; cond < 2; ++cond) {
+                e.set_plan_closure(cond == 0);
+                const auto d = e.describe(perceive(e, ev, {}, false), true);
+                const auto a = e.answer(ends.question(q_ev, field, field != 0 && t % 2 == 0));  // metade no passado
+                end_ok[cond] += (test.check(d).agreement && judge(d, sc)) + test.check(a).agreement;
+                end_runon[cond] += runon(d) + runon(a);
+            }
+            e.set_plan_closure(true);
+            end_n += 2;
+        }
+    }
+
     if (eyes) {
         // conceitos que os olhos formaram: cada coisa vista de novo (sem palavra) cai no conceito dela?
         std::map<std::string, std::map<std::string, int>> owner;  // conceito -> coisa -> vezes
@@ -327,7 +568,7 @@ int main(int argc, char** argv) {
         int consistent = 0, views = 0;
         for (const auto& t : thing_names) {
             std::map<std::string, int> votes;
-            for (int v = 0; v < 3; ++v) votes[e.see_thing(eva2::draw_sprite(t, view_rng), false)]++;
+            for (int v = 0; v < 3; ++v) votes[e.see_thing(look(t), false)]++;
             int best = 0; for (const auto& [k, n] : votes) if (n > best) { best = n; majority[t] = k; }
             consistent += best; views += 3;
             for (const auto& [k, n] : votes) owner[k][t] += n;
@@ -354,4 +595,21 @@ int main(int argc, char** argv) {
                 pct(tense_ok[0], tense_n), pct(tense_ok[1], tense_n), tense_n);
     std::printf("4. pensando alto (4 min de silêncio): %d falas, %.0f%% gramaticais, %.0f%% verdadeiras (descrevem algo que ela viu), %.0f%% no passado (das que têm verbo)\n",
                 thoughts, pct(gram_thoughts, thoughts), pct(true_thoughts, thoughts), pct(past_thoughts, verb_thoughts));
+    std::printf("5. sim ou não sobre a cena de 3 cenas atrás, %d perguntas (metade falsas):\n", yn_n);
+    std::printf("     com o comparador: sim/não certo %.0f%%, e com a correção certa e gramatical %.0f%% (disse \"não sei\" %.0f%%) | sem o comparador: %.0f%% / %.0f%%\n",
+                pct(yn_judge[0], yn_n), pct(yn_full[0], yn_n), pct(yn_dontknow, yn_n), pct(yn_judge[1], yn_n), pct(yn_full[1], yn_n));
+    std::printf("6. não sei: \"cadê a X?\" para coisas que ela só viu em livro: \"não sei\" em %.0f%% (%d) | para coisas que ela viu, disse \"não sei\" em %.0f%% (%d)\n",
+                pct(dk_ok, dk_n), dk_n, pct(dk_false, dk_known_n), dk_known_n);
+    std::printf("7. negação (\"o leão não está na sala\": qual das duas cenas?), %d testes: entendendo o \"não\" %.0f%% | sem o comparador %.0f%%\n",
+                neg_n, pct(neg_ok[0], neg_n), pct(neg_ok[1], neg_n));
+    std::printf("8. fatos contados (ela não viu), pergunta 3 fatos depois, %d perguntas: certa %.0f%% | sem guardar o que ouve: %.0f%%\n",
+                told_n, pct(told_ok[0], told_n), pct(told_ok[1], told_n));
+    std::printf("9. nomes contados por você (nomes que ela nunca ouviu), %d: o nome certo %.0f%%, meu/seu do lado certo %.0f%%, a frase exata %.0f%% | sem trocar a perspectiva: %.0f%% / %.0f%% / %.0f%%\n",
+                nm_n, pct(nm_name[0], nm_n), pct(nm_poss[0], nm_n), pct(nm_full[0], nm_n), pct(nm_name[1], nm_n), pct(nm_poss[1], nm_n), pct(nm_full[1], nm_n));
+    std::printf("10. sentimentos: depois de ver alguém rir ou chorar, \"como você está?\" certo %.0f%% (sem interocepção %.0f%%), %d; \"você está feliz/triste?\" sim/não certo %.0f%%\n",
+                pct(fe_ok[0], fe_n), pct(fe_ok[1], fe_n), fe_n, pct(fyn_ok, fyn_n));
+    std::printf("    lembrar colore o humor (\"cadê o X?\" depois de X rir ou chorar e de 4 outras cenas): o humor vai para o lado da lembrança em %.0f%% (média %.2f) | sem a valência na memória: %.0f%% (%.2f), %d\n",
+                pct(mem_toward[0], mem_n), mem_n ? mem_shift[0] / mem_n : 0.0, pct(mem_toward[1], mem_n), mem_n ? mem_shift[1] / mem_n : 0.0, mem_n);
+    std::printf("11. frases que terminam (%d falas: descrições e respostas): certas %.0f%%, emendaram %.0f%% | sem o fechamento pelo plano: certas %.0f%%, emendaram %.0f%%\n",
+                end_n, pct(end_ok[0], end_n), pct(end_runon[0], end_n), pct(end_ok[1], end_n), pct(end_runon[1], end_n));
 }
